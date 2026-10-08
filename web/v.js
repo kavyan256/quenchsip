@@ -1,5 +1,7 @@
 import { api, param, escape } from './api.js';
 import { TAP_TYPES, newTapId } from './core/tap.js';
+import { outcome, retryDelay, queueSummary } from './core/sync.js';
+import { saveTap, stationTaps, pruneSent } from './queue.js';
 
 const $ = (id) => document.getElementById(id);
 const eventId = param('e');
@@ -8,36 +10,61 @@ const stationId = param('s');
 // Two presses of the same button within this window are one tap (a real swap takes longer).
 const DOUBLE_TAP_MS = 3000;
 const lastPress = {};
-const recent = [];
 
 const time = (iso) => new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+const STATUS_TEXT = { pending: 'waiting to send', sent: 'sent', failed: 'not saved' };
 
 function feedback(kind, html) {
   $('feedback').className = `feedback ${kind}`;
   $('feedback').innerHTML = html;
 }
 
-function renderRecent() {
-  $('recent').innerHTML = recent.length
-    ? recent.slice(0, 5).map((t) => `<li><span>${escape(TAP_TYPES[t.type])}</span><span class="small">${time(t.at)}${t.saved ? ' · saved' : ' · not saved'}</span></li>`).join('')
+async function render() {
+  const taps = await stationTaps(eventId, stationId);
+  const summary = queueSummary(taps);
+  $('syncState').className = `sync ${summary.kind}`;
+  $('syncState').textContent = summary.text;
+  const latest = taps.slice(-5).reverse();
+  $('recent').innerHTML = latest.length
+    ? latest.map((t) => `<li><span>${escape(TAP_TYPES[t.type])}</span><span class="small">${time(t.at)} · ${STATUS_TEXT[t.status]}${t.error ? `: ${escape(t.error)}` : ''}</span></li>`).join('')
     : '<li class="small">None yet.</li>';
 }
 
-async function send(tap) {
-  feedback('pending', `Saving <strong>${escape(TAP_TYPES[tap.type])}</strong>…`);
+// Sends waiting taps oldest first. Stops at the first "no signal" and tries again later.
+let flushing = false;
+let attempt = 0;
+let retryTimer;
+async function flush() {
+  if (flushing) return;
+  flushing = true;
+  clearTimeout(retryTimer);
   try {
-    await api('POST', `/events/${eventId}/stations/${stationId}/taps`, { body: { uuid: tap.uuid, type: tap.type, deviceTs: tap.at } });
-    tap.saved = true;
-    feedback('ok', `<strong>Saved:</strong> ${escape(TAP_TYPES[tap.type])} at ${time(tap.at)}`);
-  } catch (err) {
-    // Same tap id on retry, so it can never be counted twice.
-    feedback('warn', `<strong>Not saved.</strong> ${escape(err.message)} <button type="button" class="ghost" id="retry">Try again</button>`);
-    $('retry').addEventListener('click', () => send(tap), { once: true });
+    for (const tap of (await stationTaps(eventId, stationId)).filter((t) => t.status === 'pending')) {
+      let status;
+      try {
+        await api('POST', `/events/${eventId}/stations/${stationId}/taps`, { body: { uuid: tap.uuid, type: tap.type, deviceTs: tap.at } });
+        status = 201;
+      } catch (err) {
+        status = err.status ?? 0;
+        tap.error = err.message;
+      }
+      const next = outcome(status);
+      if (next === 'retry') {
+        retryTimer = setTimeout(flush, retryDelay(attempt++));
+        break;
+      }
+      attempt = 0;
+      tap.status = next;
+      if (next === 'sent') delete tap.error;
+      await saveTap(tap);
+    }
+  } finally {
+    flushing = false;
+    await render();
   }
-  renderRecent();
 }
 
-$('buttons').addEventListener('click', (e) => {
+$('buttons').addEventListener('click', async (e) => {
   const button = e.target.closest('button.tap');
   if (!button) return;
   const type = button.dataset.type;
@@ -48,24 +75,58 @@ $('buttons').addEventListener('click', (e) => {
   }
   lastPress[type] = now;
   if (navigator.vibrate) navigator.vibrate(30);
-  const tap = { uuid: newTapId(), type, at: new Date(now).toISOString(), saved: false };
-  recent.unshift(tap);
-  send(tap);
+  // Save on the phone first, so the tap is never lost, then try to send.
+  const tap = { uuid: newTapId(), eventId, stationId, type, at: new Date(now).toISOString(), status: 'pending' };
+  await saveTap(tap);
+  feedback('ok', `<strong>Saved:</strong> ${escape(TAP_TYPES[type])} at ${time(tap.at)}`);
+  await render();
+  attempt = 0;
+  flush();
 });
 
-async function load() {
-  if (!eventId || !stationId) throw new Error('This link is incomplete. Scan the QR code at your station again.');
-  const { event, stations } = await api('GET', `/events/${eventId}`);
-  const station = stations.find((s) => s.id === stationId);
-  if (!station) throw new Error('This station was removed. Ask the organiser for the new QR code.');
-  document.title = `${station.name} · QuenchSip`;
-  $('eventName').textContent = event.name;
-  $('station').textContent = station.name;
-  $('zone').textContent = `Zone: ${station.zone}`;
-  $('buttons').hidden = false;
+// Try again as soon as the phone gets signal back or the volunteer returns to the page.
+addEventListener('online', () => { attempt = 0; flush(); });
+document.addEventListener('visibilitychange', () => { if (!document.hidden) flush(); });
+
+// The station name is kept on the phone, so the page still works if it is opened without signal.
+const cacheKey = `qs-station-${eventId}-${stationId}`;
+async function loadStation() {
+  try {
+    const { event, stations } = await api('GET', `/events/${eventId}`);
+    const station = stations.find((s) => s.id === stationId);
+    if (!station) throw Object.assign(new Error('This station was removed. Ask the organiser for the new QR code.'), { status: 404 });
+    const info = { eventName: event.name, name: station.name, zone: station.zone };
+    try { localStorage.setItem(cacheKey, JSON.stringify(info)); } catch {}
+    return info;
+  } catch (err) {
+    if (err.status) throw err;
+    let cached = null;
+    try { cached = JSON.parse(localStorage.getItem(cacheKey)); } catch {}
+    if (!cached) throw new Error('No signal, and this phone has not opened this station before. Try again when you have signal.');
+    return { ...cached, offline: true };
+  }
 }
 
-load().catch((err) => {
+async function start() {
+  if (!eventId || !stationId) throw new Error('This link is incomplete. Scan the QR code at your station again.');
+  const info = await loadStation();
+  document.title = `${info.name} · QuenchSip`;
+  $('eventName').textContent = info.eventName;
+  $('station').textContent = info.name;
+  $('zone').textContent = `Zone: ${info.zone}`;
+  if (info.offline) feedback('pending', 'No signal right now. Keep tapping: taps are saved on this phone and sent later.');
+  $('buttons').hidden = false;
+  await pruneSent(eventId, stationId);
+  await render();
+  flush();
+}
+
+// The service worker lets this page open without signal. Browsers only allow it on https or localhost.
+if ('serviceWorker' in navigator && window.isSecureContext) {
+  navigator.serviceWorker.register('sw.js').catch(() => {});
+}
+
+start().catch((err) => {
   $('station').textContent = 'Station not found';
   $('loadError').textContent = err.message;
   $('loadError').hidden = false;

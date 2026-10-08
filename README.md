@@ -12,8 +12,9 @@ Built for Environmental Hacks (WeMakeDevs x AWS), Waste and Energy track, 8-11 O
 - [x] Step 1: plan calculator (jars and cups per station per hour, low/high range, readiness check)
 - [x] Step 2: save event (organiser PIN), manage stations and runners, printable station QR codes, volunteer station page
 - [x] Step 3: volunteer taps ("Jar swapped", "Last jar", "Cups low"), each counted exactly once
+- [x] Step 4: offline queue (taps saved on the phone first, sent when there is signal; page opens offline)
 - [ ] Step 0: AWS deploy (SAM: API Gateway + Lambda + DynamoDB; S3 + CloudFront for the site)
-- [ ] Next: offline queue, live board
+- [ ] Next: live board
 
 ## Architecture
 | Piece | Local | AWS |
@@ -65,6 +66,8 @@ template.yaml SAM template
 The plan is computed when the event is read, so it always matches the current stations.
 
 **Taps count exactly once.** Each tap gets a random id on the phone. Storing the tap and updating the station's counters happen in one DynamoDB transaction, and the tap is stored only if its id is new. A retried tap is answered `200 duplicate` and changes nothing. Pressing the same button twice within 3 seconds counts as one tap.
+
+**Taps survive no signal.** A tap is saved in the phone's IndexedDB before it is sent. Waiting taps are sent oldest first, retried with backoff (1 s, 2 s, 4 s … 30 s), and again when the phone comes back online or the page is reopened. The volunteer sees "3 taps saved on this phone, waiting to send" or "All taps sent". A service worker lets the station page open with no signal, but browsers allow it only on https or localhost, so on the deployed (https) site and not over plain-http Wi-Fi testing.
 
 ## API
 | Method | Path | Who |

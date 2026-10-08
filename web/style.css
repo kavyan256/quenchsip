@@ -203,6 +203,11 @@ td input {
 
 .recent-title { font-size: 1rem; color: var(--muted); margin-top: 8px; }
 
+.sync { font-weight: 600; margin: 0 0 8px; }
+.sync::before { content: "● "; }
+.sync.ok { color: var(--ok-text); }
+.sync.pending, .sync.warn { color: var(--warn-text); }
+
 /* QR sheet: two cards per row, one card never split across pages */
 .qr-grid {
   display: grid;
