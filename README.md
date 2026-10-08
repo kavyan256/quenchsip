@@ -11,8 +11,9 @@ Built for Environmental Hacks (WeMakeDevs x AWS), Waste and Energy track, 8-11 O
 ## Status
 - [x] Step 1: plan calculator (jars and cups per station per hour, low/high range, readiness check)
 - [x] Step 2: save event (organiser PIN), manage stations and runners, printable station QR codes, volunteer station page
+- [x] Step 3: volunteer taps ("Jar swapped", "Last jar", "Cups low"), each counted exactly once
 - [ ] Step 0: AWS deploy (SAM: API Gateway + Lambda + DynamoDB; S3 + CloudFront for the site)
-- [ ] Next: volunteer taps, offline queue, live board
+- [ ] Next: offline queue, live board
 
 ## Architecture
 | Piece | Local | AWS |
@@ -59,8 +60,20 @@ template.yaml SAM template
 | `META` | event settings, organiser PIN hash (scrypt + salt, never returned by the API) |
 | `STN#<id>` | station: name, zone, stock |
 | `RUN#<id>` | runner: name, status |
+| `TAP#<uuid>` | volunteer tap: type, station, when it happened (phone clock, checked), when received |
 
 The plan is computed when the event is read, so it always matches the current stations.
+
+**Taps count exactly once.** Each tap gets a random id on the phone. Storing the tap and updating the station's counters happen in one DynamoDB transaction, and the tap is stored only if its id is new. A retried tap is answered `200 duplicate` and changes nothing. Pressing the same button twice within 3 seconds counts as one tap.
+
+## API
+| Method | Path | Who |
+|---|---|---|
+| GET | `/health` | anyone |
+| POST | `/events` | organiser (sets PIN) |
+| GET | `/events/{id}` | anyone with the link |
+| POST, DELETE | `/events/{id}/stations[/{sid}]`, `/events/{id}/runners[/{rid}]` | organiser (`x-organiser-pin` header) |
+| POST | `/events/{id}/stations/{sid}/taps` | volunteer (station QR link) |
 
 ## Assumptions in the plan
 | Value | Default | Source |

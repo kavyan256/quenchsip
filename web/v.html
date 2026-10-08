@@ -7,14 +7,30 @@
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
-  <main>
+  <main class="volunteer">
     <p class="small" id="eventName">QuenchSip</p>
     <p class="small">You are at</p>
     <div class="station-name" id="station">Loading…</div>
     <p class="small" id="zone"></p>
     <p id="loadError" class="error" hidden></p>
-    <div class="card" id="buttons" hidden>
-      <p>Tap buttons for this station arrive in the next update.</p>
+
+    <div id="buttons" hidden>
+      <button type="button" class="tap tap-swap" data-type="swap">
+        <span class="tap-title">Jar swapped</span>
+        <span class="tap-hint">Tap each time you put a new jar on</span>
+      </button>
+      <button type="button" class="tap tap-last" data-type="last_jar">
+        <span class="tap-title">Last jar</span>
+        <span class="tap-hint">Tap when only one jar is left here</span>
+      </button>
+      <button type="button" class="tap tap-cups" data-type="cups_low">
+        <span class="tap-title">Cups low</span>
+      </button>
+
+      <div id="feedback" class="feedback" role="status" aria-live="polite"></div>
+
+      <h2 class="recent-title">Your taps</h2>
+      <ul class="list" id="recent"><li class="small">None yet.</li></ul>
     </div>
   </main>
   <script type="module" src="v.js"></script>

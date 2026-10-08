@@ -2,6 +2,7 @@
 //   PK EVT#<id>  SK META        event settings + organiser PIN hash
 //   PK EVT#<id>  SK STN#<sid>   station
 //   PK EVT#<id>  SK RUN#<rid>   runner
+//   PK EVT#<id>  SK TAP#<uuid>  volunteer tap (see taps.js); sorts after the others
 import { GetCommand, QueryCommand, TransactWriteCommand, PutCommand, DeleteCommand } from '@aws-sdk/lib-dynamodb';
 import { db, TABLE } from './db.js';
 import { hashPin, verifyPin, newId } from './pin.js';
@@ -41,7 +42,10 @@ export async function createEvent(input) {
 
 // Public view: no PIN hash. The plan is worked out on read, so it always matches the current stations.
 export async function getEvent(id) {
-  const res = await db.send(new QueryCommand({ TableName: TABLE, KeyConditionExpression: 'PK = :pk', ExpressionAttributeValues: { ':pk': pk(id) } }));
+  // SK < "TAP#" reads META, RUN# and STN# items but skips the (many) taps.
+  const res = await db.send(
+    new QueryCommand({ TableName: TABLE, KeyConditionExpression: 'PK = :pk AND SK < :taps', ExpressionAttributeValues: { ':pk': pk(id), ':taps': 'TAP#' } })
+  );
   const meta = res.Items.find((x) => x.SK === 'META');
   if (!meta) throw new HttpError(404, 'Event not found.');
   const { PK, SK, pinHash, type, ...event } = meta;

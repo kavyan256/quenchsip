@@ -79,6 +79,41 @@ try {
   }
   step('each QR link opens the matching volunteer station');
 
+  // Step 3: volunteer taps
+  const API = process.env.API_URL || 'http://localhost:3001';
+  const stationId = new URL(cards[0].url).searchParams.get('s');
+  const counts = async () => (await (await fetch(`${API}/events/${eventId}`)).json()).stations.find((s) => s.id === stationId);
+  const vol = await open(cards[0].url);
+  const started = Date.now();
+  await vol.ev(`document.querySelector('[data-type="swap"]').click()`);
+  let saved = '';
+  while (Date.now() - started < 5000 && !saved.startsWith('Saved')) {
+    await sleep(50);
+    saved = await vol.ev(`document.getElementById('feedback').textContent`);
+  }
+  const tapMs = Date.now() - started;
+  assert.match(saved, /^Saved: Jar swapped/);
+  assert.ok(tapMs < 2000, `tap took ${tapMs} ms`);
+  step(`"Jar swapped" tap is saved in ${tapMs} ms (gate: under 2 s)`);
+
+  await vol.ev(`document.querySelector('[data-type="swap"]').click()`);
+  await sleep(300);
+  assert.match(await vol.ev(`document.getElementById('feedback').textContent`), /Already counted/);
+  assert.equal((await counts()).swapCount, 1);
+  step('accidental double tap counts once');
+
+  await vol.ev(`document.querySelector('[data-type="last_jar"]').click()`);
+  await sleep(1000);
+  await vol.ev(`document.querySelector('[data-type="cups_low"]').click()`);
+  await sleep(1000);
+  const s = await counts();
+  assert.deepEqual([s.swapCount, s.lastJarCount, s.cupsLowCount], [1, 1, 1]);
+  assert.equal(await vol.ev(`document.querySelectorAll('#recent li').length`), 3);
+  assert.equal(await vol.ev('document.documentElement.scrollWidth > window.innerWidth'), false);
+  assert.deepEqual(vol.errors, []);
+  await vol.close();
+  step('"Last jar" and "Cups low" are saved and listed');
+
   const bad = await open(`${WEB}/v.html?e=${eventId}&s=zzzzzz`);
   assert.match(await bad.ev(`document.getElementById('loadError').textContent`), /removed/);
   await bad.close();
@@ -89,6 +124,7 @@ try {
   console.error('not ok -', err.message);
   process.exitCode = 1;
 } finally {
-  chrome.kill();
-  rmSync(profile, { recursive: true, force: true });
+  // Wait for Chrome to exit before deleting its profile, or it may still be writing files.
+  await new Promise((r) => { chrome.once('exit', r); chrome.kill(); setTimeout(r, 3000); });
+  try { rmSync(profile, { recursive: true, force: true, maxRetries: 3 }); } catch {}
 }

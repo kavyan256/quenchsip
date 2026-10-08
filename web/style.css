@@ -171,6 +171,38 @@ td input {
 /* Volunteer screen */
 .station-name { font-size: 2.2rem; font-weight: 800; margin: 8px 0; }
 
+.volunteer { max-width: 520px; }
+
+.tap {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  width: 100%;
+  margin: 0 0 14px;
+  padding: 22px 20px;
+  border-radius: 16px;
+  text-align: left;
+  touch-action: manipulation;
+}
+.tap:active { transform: scale(0.98); }
+.tap-title { font-size: 1.7rem; font-weight: 800; line-height: 1.1; }
+.tap-hint { font-size: 0.95rem; font-weight: 400; opacity: 0.9; }
+
+.tap-swap { min-height: 120px; }
+.tap-last { min-height: 110px; background: var(--warn-bg); color: var(--warn-text); border-color: var(--warn-text); }
+.tap-cups { min-height: 64px; padding: 14px 20px; background: transparent; color: var(--text); border-color: var(--border); }
+.tap-cups .tap-title { font-size: 1.2rem; font-weight: 700; }
+
+.feedback { border-radius: var(--radius); padding: 12px 16px; margin-bottom: 16px; min-height: 48px; }
+.feedback:empty { display: none; }
+.feedback.ok { background: var(--ok-bg); color: var(--ok-text); }
+.feedback.warn { background: var(--warn-bg); color: var(--warn-text); }
+.feedback.pending { background: var(--surface); border: 1px solid var(--border); }
+.feedback button { margin-top: 8px; display: block; }
+
+.recent-title { font-size: 1rem; color: var(--muted); margin-top: 8px; }
+
 /* QR sheet: two cards per row, one card never split across pages */
 .qr-grid {
   display: grid;
