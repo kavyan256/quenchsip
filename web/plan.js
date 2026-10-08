@@ -142,6 +142,16 @@ for (const id of ['attendees', 'heat', 'lphLow', 'lphHigh', 'volunteers', 'suppl
   $(id).addEventListener('change', calculate);
 }
 
+// Event start in the organiser's own time zone, sent as an ISO time.
+const startsAt = () => {
+  const [y, m, d] = ($('date').value || '').split('-').map(Number);
+  return y ? new Date(y, m - 1, d, num('startHour')).toISOString() : undefined;
+};
+{
+  const today = new Date();
+  $('date').value = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+}
+
 // Save the plan as an event, then go to the organiser page.
 $('createEvent').addEventListener('click', async () => {
   const status = $('createStatus');
@@ -156,6 +166,7 @@ $('createEvent').addEventListener('click', async () => {
     const { id } = await api('POST', '/events', {
       body: {
         name: $('name').value,
+        startsAt: startsAt(),
         attendees: num('attendees'),
         startHour: num('startHour'),
         hourCount: Math.max(1, num('hourCount')),

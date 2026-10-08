@@ -1,4 +1,12 @@
 :root {
+  --st-red-bg: #fde8e6;
+  --st-red: #b42318;
+  --st-amber-bg: #fff3e0;
+  --st-amber: #8a4b00;
+  --st-quiet-bg: #ece9f7;
+  --st-quiet: #4b3a8c;
+  --st-ok-bg: #e5f5ee;
+  --st-ok: #0b5d45;
   --bg: #f6f8f7;
   --surface: #ffffff;
   --text: #15201b;
@@ -15,6 +23,14 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
+    --st-red-bg: #3d1512;
+    --st-red: #ffb4ab;
+    --st-amber-bg: #3a2a12;
+    --st-amber: #ffd59a;
+    --st-quiet-bg: #2a2445;
+    --st-quiet: #cfc4ff;
+    --st-ok-bg: #12352a;
+    --st-ok: #9fe5c9;
     --bg: #0f1513;
     --surface: #18211d;
     --text: #e6eeea;
@@ -202,6 +218,26 @@ td input {
 .feedback button { margin-top: 8px; display: block; }
 
 .recent-title { font-size: 1rem; color: var(--muted); margin-top: 8px; }
+
+/* Live board */
+.board { max-width: 1200px; }
+.board-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; }
+.freshness { font-size: 0.9rem; color: var(--muted); margin: 12px 0 0; }
+.freshness.stale { color: var(--st-red); font-weight: 700; }
+.summary { display: flex; gap: 8px; flex-wrap: wrap; margin: 8px 0 16px; }
+.chip { display: inline-block; border-radius: 999px; padding: 4px 12px; font-weight: 700; font-size: 0.9rem; margin-top: 6px; }
+
+.tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 14px; margin-bottom: 16px; }
+.tile { border-radius: 14px; padding: 16px; border: 2px solid transparent; }
+.tile-status { font-weight: 800; font-size: 1.05rem; text-transform: uppercase; letter-spacing: 0.02em; }
+.tile-name { font-size: 1.6rem; font-weight: 800; line-height: 1.15; margin: 4px 0 2px; color: var(--text); }
+.tile-detail { font-weight: 600; margin: 10px 0 4px; color: var(--text); }
+
+.st-needs_jars { background: var(--st-red-bg); color: var(--st-red); border-color: var(--st-red); }
+.tile.st-needs_jars { border-width: 4px; }
+.st-quiet { background: var(--st-quiet-bg); color: var(--st-quiet); border-color: var(--st-quiet); }
+.st-cups_low { background: var(--st-amber-bg); color: var(--st-amber); border-color: var(--st-amber); }
+.st-ok { background: var(--st-ok-bg); color: var(--st-ok); border-color: transparent; }
 
 .sync { font-weight: 600; margin: 0 0 8px; }
 .sync::before { content: "● "; }

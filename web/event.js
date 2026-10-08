@@ -24,6 +24,7 @@ async function load() {
   $('title').textContent = event.name;
   $('subtitle').textContent = `${event.attendees.toLocaleString('en-IN')} people · ${data.hours[0]} for ${event.hourCount} h · order ${plan.total.jarsLow}–${plan.total.jarsHigh} jars, ${plan.total.cupsLow.toLocaleString('en-IN')}–${plan.total.cupsHigh.toLocaleString('en-IN')} cups`;
   $('qrLink').href = `qr.html?e=${eventId}`;
+  $('boardLink').href = `board.html?e=${eventId}`;
 
   $('warnings').innerHTML = warnings.length
     ? `<div class="status warn"><strong>Fix before the event:</strong><ul>${warnings.map((w) => `<li>${escape(w)}</li>`).join('')}</ul></div>`

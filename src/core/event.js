@@ -56,8 +56,17 @@ export function validateEvent(input) {
   const high = number(input?.litresPerPersonHr?.high, 'Water per person per hour (high)', 0, 5);
   if (low > high) fail('Low water per person must not be more than high.');
 
+  // When the event starts (ISO time). Optional for older events; the board needs it to know if the event is live.
+  let startsAt;
+  if (input?.startsAt !== undefined) {
+    const t = Date.parse(input.startsAt);
+    if (!Number.isFinite(t)) fail('Event date and start time are not valid.');
+    startsAt = new Date(t).toISOString();
+  }
+
   return {
     name: text(input?.name, 'Event name', LIMITS.name),
+    startsAt,
     attendees: number(input?.attendees, 'People expected', 1, 500000, { integer: true }),
     startHour: number(input?.startHour, 'Start hour', 0, 23, { integer: true }),
     hourCount,

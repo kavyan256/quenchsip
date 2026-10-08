@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Live board · QuenchSip</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main class="board">
+    <p class="no-print"><a id="back" href="#">← Event</a></p>
+    <div class="board-head">
+      <div>
+        <h1 id="title">Live board</h1>
+        <p class="small" id="clock"></p>
+      </div>
+      <p id="freshness" class="freshness" role="status" aria-live="polite"></p>
+    </div>
+    <p id="loadError" class="error" hidden></p>
+    <div class="summary" id="summary"></div>
+    <div class="tiles" id="tiles"></div>
+    <p class="note">Stations that need help come first. "Needs jars now" means the volunteer tapped "Last jar". "No taps" means nobody has tapped for 1.5× the time a jar should last (at least 10 minutes), so check on the volunteer.</p>
+  </main>
+  <script type="module" src="board.js"></script>
+</body>
+</html>

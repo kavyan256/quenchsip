@@ -177,6 +177,48 @@ try {
   await sw.close();
   step('page opens with no signal (service worker + saved station name)');
 
+  // Live board: an event that started 30 minutes ago.
+  // 1,000 people in one zone, 3 stations: ~83 L/hr each at the low rate -> quiet after 22 min.
+  const post = (path, body) => fetch(`${API}${path}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }).then((r) => r.json());
+  const live = await post('/events', {
+    name: 'Board Test',
+    startsAt: new Date(Date.now() - 30 * 60000).toISOString(),
+    attendees: 1000,
+    startHour: 0,
+    hourCount: 3,
+    litresPerPersonHr: { low: 0.25, high: 0.5 },
+    share: { Field: [1, 1, 1] },
+    stations: [{ name: 'Alpha', zone: 'Field' }, { name: 'Bravo', zone: 'Field' }, { name: 'Charlie', zone: 'Field' }],
+    pin: '2468',
+  });
+  const liveStations = (await (await fetch(`${API}/events/${live.id}`)).json()).stations;
+  const sidOf = (name) => liveStations.find((s) => s.name === name).id;
+  const tapApi = (name, type) => post(`/events/${live.id}/stations/${sidOf(name)}/taps`, { uuid: crypto.randomUUID(), type, deviceTs: new Date().toISOString() });
+  await tapApi('Bravo', 'last_jar');
+  await tapApi('Charlie', 'swap');
+
+  const board = await open(`${WEB}/board.html?e=${live.id}`);
+  const tiles = `[...document.querySelectorAll('.tile')].map(t => t.querySelector('.tile-name').textContent + ': ' + t.querySelector('.tile-status').textContent)`;
+  await waitFor(board, `document.querySelectorAll('.tile').length === 3`);
+  assert.deepEqual(await board.ev(tiles), ['Bravo: Needs jars now', 'Alpha: No taps: check on volunteer', 'Charlie: OK']);
+  assert.match(await board.ev(`document.getElementById('clock').textContent`), /^Live/);
+  step('board: needs-jars first, silent station flagged, active station OK');
+
+  const tapAt = Date.now();
+  await tapApi('Alpha', 'swap');
+  await waitFor(board, `${tiles}.includes('Alpha: OK')`, 10000);
+  const seenMs = Date.now() - tapAt;
+  step(`a tap shows on the board in ${(seenMs / 1000).toFixed(1)} s (gate: under 10 s)`);
+
+  await board.setOffline(true);
+  await waitFor(board, `document.getElementById('freshness').textContent.startsWith('Not updating')`, 40000);
+  await board.setOffline(false);
+  await waitFor(board, `document.getElementById('freshness').textContent.startsWith('Updated')`, 10000);
+  assert.equal(await board.ev('document.documentElement.scrollWidth > window.innerWidth'), false);
+  assert.deepEqual(board.errors, []);
+  await board.close();
+  step('board says when it has stopped updating, and recovers');
+
   const bad = await open(`${WEB}/v.html?e=${eventId}&s=zzzzzz`);
   assert.match(await bad.ev(`document.getElementById('loadError').textContent`), /removed/);
   await bad.close();

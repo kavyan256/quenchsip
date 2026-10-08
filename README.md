@@ -13,8 +13,9 @@ Built for Environmental Hacks (WeMakeDevs x AWS), Waste and Energy track, 8-11 O
 - [x] Step 2: save event (organiser PIN), manage stations and runners, printable station QR codes, volunteer station page
 - [x] Step 3: volunteer taps ("Jar swapped", "Last jar", "Cups low"), each counted exactly once
 - [x] Step 4: offline queue (taps saved on the phone first, sent when there is signal; page opens offline)
+- [x] Step 5: live board (stations needing help first, refreshes every 5 s, warns when it stops updating)
 - [ ] Step 0: AWS deploy (SAM: API Gateway + Lambda + DynamoDB; S3 + CloudFront for the site)
-- [ ] Next: live board
+- [ ] Next: run-dry projection and quiet alerts on a schedule
 
 ## Architecture
 | Piece | Local | AWS |
@@ -68,6 +69,16 @@ The plan is computed when the event is read, so it always matches the current st
 **Taps count exactly once.** Each tap gets a random id on the phone. Storing the tap and updating the station's counters happen in one DynamoDB transaction, and the tap is stored only if its id is new. A retried tap is answered `200 duplicate` and changes nothing. Pressing the same button twice within 3 seconds counts as one tap.
 
 **Taps survive no signal.** A tap is saved in the phone's IndexedDB before it is sent. Waiting taps are sent oldest first, retried with backoff (1 s, 2 s, 4 s … 30 s), and again when the phone comes back online or the page is reopened. The volunteer sees "3 taps saved on this phone, waiting to send" or "All taps sent". A service worker lets the station page open with no signal, but browsers allow it only on https or localhost, so on the deployed (https) site and not over plain-http Wi-Fi testing.
+
+**Live board** (`board.html?e=<id>`). One tile per station, most urgent first:
+| Status | When |
+|---|---|
+| Needs jars now | the volunteer tapped "Last jar" (stays on until a restock) |
+| No taps: check on volunteer | the event is live and nobody has tapped for 1.5× the planned time per jar (low estimate), at least 10 min |
+| Cups low | the volunteer tapped "Cups low" |
+| OK | none of the above |
+
+Each status has its own colour and its words on the tile, so it does not rely on colour alone.
 
 ## API
 | Method | Path | Who |

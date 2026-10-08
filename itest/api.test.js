@@ -87,6 +87,13 @@ test('new zone without crowd share gives a warning', async () => {
   assert.ok(r.data.warnings.some((w) => w.includes('Zone "Food" has no crowd share')));
 });
 
+test('event start time is stored and returned; a bad one is rejected', async () => {
+  const startsAt = '2026-10-10T11:30:00.000Z';
+  const { data } = await call('POST', '/events', { ...newEvent(), startsAt });
+  assert.equal((await call('GET', `/events/${data.id}`)).data.event.startsAt, startsAt);
+  assert.equal((await call('POST', '/events', { ...newEvent(), startsAt: 'tomorrow-ish' })).status, 400);
+});
+
 test('bad input gives 400 with a plain message', async () => {
   const r = await call('POST', '/events', { ...newEvent(), pin: '12' });
   assert.equal(r.status, 400);
