@@ -1,0 +1,26 @@
+{
+  "name": "quenchsip",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Water control room for plastic-free events",
+  "type": "module",
+  "scripts": {
+    "test": "node --test test/",
+    "test:int": "DDB_ENDPOINT=http://localhost:8000 node --test itest/",
+    "test:e2e": "node --experimental-websocket --no-warnings e2e/flow.mjs",
+    "db:start": "docker run -d --rm --name quenchsip-ddb -p 8000:8000 amazon/dynamodb-local -jar DynamoDBLocal.jar -inMemory -disableTelemetry",
+    "db:stop": "docker stop quenchsip-ddb",
+    "db:table": "DDB_ENDPOINT=http://localhost:8000 node scripts/create-table.js",
+    "api": "DDB_ENDPOINT=http://localhost:8000 node src/local/server.js",
+    "sync:web": "mkdir -p web/core web/vendor && cp src/core/*.js web/core/ && cp node_modules/qrcode-generator/dist/qrcode.mjs web/vendor/qrcode.mjs",
+    "serve": "npm run sync:web && python3 -m http.server 8080 -d web"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "devDependencies": {
+    "@aws-sdk/client-dynamodb": "^3.1147.0",
+    "@aws-sdk/lib-dynamodb": "^3.1147.0",
+    "qrcode-generator": "^2.0.4"
+  }
+}

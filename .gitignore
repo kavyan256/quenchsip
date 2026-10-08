@@ -1,0 +1,5 @@
+node_modules/
+.aws-sam/
+web/core/
+web/vendor/
+.DS_Store

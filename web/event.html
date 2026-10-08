@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Event · QuenchSip</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main>
+    <p><a href="index.html">← QuenchSip</a></p>
+    <h1 id="title">Loading…</h1>
+    <p class="lead" id="subtitle"></p>
+    <p id="loadError" class="error" hidden></p>
+
+    <div id="content" hidden>
+      <div id="warnings"></div>
+
+      <section class="card">
+        <h2>Print the station QR codes</h2>
+        <p>Stick one at each water station. A volunteer scans it to open that station's screen.</p>
+        <p><a id="qrLink" href="#">Open the QR sheet →</a></p>
+      </section>
+
+      <section class="card">
+        <h2>Organiser PIN</h2>
+        <p class="small">Needed to add or remove stations and runners.</p>
+        <div class="grid"><label>PIN <input id="pin" type="password" inputmode="numeric" autocomplete="current-password" maxlength="8"></label></div>
+      </section>
+
+      <section class="card">
+        <h2>Water stations</h2>
+        <ul class="list" id="stations"></ul>
+        <form class="inline-form" id="addStation">
+          <label>Station name <input name="name" required maxlength="40"></label>
+          <label>Zone <input name="zone" required maxlength="40" list="zones"></label>
+          <button type="submit">Add station</button>
+        </form>
+        <datalist id="zones"></datalist>
+      </section>
+
+      <section class="card">
+        <h2>Runners</h2>
+        <ul class="list" id="runners"></ul>
+        <form class="inline-form" id="addRunner">
+          <label>Runner name <input name="name" required maxlength="40"></label>
+          <button type="submit">Add runner</button>
+        </form>
+      </section>
+
+      <p id="actionStatus" role="status" aria-live="polite"></p>
+    </div>
+  </main>
+  <script type="module" src="event.js"></script>
+</body>
+</html>

@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>QR codes · QuenchSip</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main>
+    <div class="no-print">
+      <p><a id="back" href="#">← Back to event</a></p>
+      <h1 id="title">Station QR codes</h1>
+      <p class="lead">Print this page and stick each code at its station. <button type="button" id="print">Print</button></p>
+    </div>
+    <p id="loadError" class="error" hidden></p>
+    <div class="qr-grid" id="grid"></div>
+  </main>
+  <script type="module" src="qr.js"></script>
+</body>
+</html>

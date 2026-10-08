@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Plan · QuenchSip</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main>
+    <p><a href="index.html">← QuenchSip</a></p>
+    <h1>Plan your event's water</h1>
+    <p class="lead">Tell us the crowd and the stations. We work out how many 20 L jars and cups each station needs, hour by hour.</p>
+
+    <section class="card">
+      <h2>1. The event</h2>
+      <div class="grid">
+        <label>Event name <input id="name" value="Spring Fest"></label>
+        <label>People expected <input id="attendees" type="number" min="0" step="100" value="5000"></label>
+        <label>Starts at (hour, 0-23) <input id="startHour" type="number" min="0" max="23" value="17"></label>
+        <label>Runs for (hours) <input id="hourCount" type="number" min="1" max="24" value="5"></label>
+        <label>Weather
+          <select id="heat">
+            <option value="1">Normal</option>
+            <option value="1.3">Hot</option>
+            <option value="1.6">Very hot</option>
+          </select>
+        </label>
+        <label>Water per person per hour, low (L) <input id="lphLow" type="number" min="0" step="0.05" value="0.25"></label>
+        <label>Water per person per hour, high (L) <input id="lphHigh" type="number" min="0" step="0.05" value="0.5"></label>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>2. Water stations</h2>
+      <p class="small">Stations in the same zone share that zone's crowd.</p>
+      <div id="stations"></div>
+      <button id="addStation" class="ghost" type="button">+ Add station</button>
+    </section>
+
+    <section class="card">
+      <h2>3. Where is the crowd each hour? (% of all people)</h2>
+      <div class="table-wrap"><table id="shareTable"></table></div>
+    </section>
+
+    <section class="card">
+      <h2>4. Team and supplies</h2>
+      <div class="grid">
+        <label>Station volunteers <input id="volunteers" type="number" min="0" value="8"></label>
+        <label>Jar supplier confirmed?
+          <select id="supplier"><option value="yes">Yes</option><option value="no">No</option></select>
+        </label>
+        <label>Good mobile signal at venue?
+          <select id="signal"><option value="yes">Yes</option><option value="no">No</option></select>
+        </label>
+      </div>
+      <label style="margin-top:12px">Runners who carry jars (one name per line)
+        <textarea id="runners" rows="3">Asha
+Ravi</textarea>
+      </label>
+    </section>
+
+    <div id="readiness"></div>
+
+    <section class="card">
+      <h2>What to order</h2>
+      <div class="totals" id="totals"></div>
+    </section>
+
+    <section class="card">
+      <h2>Jars needed per station, per hour (low–high)</h2>
+      <div class="table-wrap"><table id="planTable"></table></div>
+    </section>
+
+    <section class="card">
+      <h2>5. Save this as your event</h2>
+      <p class="small">You get a page to manage stations and runners, and QR codes to print for each station.</p>
+      <div class="grid">
+        <label>Organiser PIN (4-8 digits) <input id="pin" type="password" inputmode="numeric" autocomplete="new-password" maxlength="8"></label>
+      </div>
+      <p><button id="createEvent" type="button">Save event</button></p>
+      <p id="createStatus" class="small" role="status" aria-live="polite"></p>
+    </section>
+
+    <p class="note">
+      How this is worked out: people at a station × water per person per hour × weather factor.
+      Jars = litres ÷ 20, rounded up. Cups = litres ÷ 0.2 (200 ml cup, an assumption).
+      The 0.5 L high value follows a government advisory for outdoor summer events (500 ml per person per hour).
+      The 0.25 L low value and the weather factors (1.3, 1.6) are our assumptions. Change them if you know better.
+      1 station per 500 people follows public-event guidance from Northern Territory, Australia.
+    </p>
+  </main>
+  <script type="module" src="plan.js"></script>
+</body>
+</html>

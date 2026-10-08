@@ -1,0 +1,33 @@
+// API client. Locally (laptop or phone on the same Wi-Fi) the API runs on port 3001 of the same host.
+// After deploy (Step 0), set DEPLOYED_API to the ApiUrl output from `sam deploy`.
+const DEPLOYED_API = '';
+
+const isLocal = /^(localhost|127\.0\.0\.1|192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+|172\.(1[6-9]|2\d|3[01])\.\d+\.\d+)$/.test(location.hostname);
+export const API = isLocal ? `http://${location.hostname}:3001` : DEPLOYED_API;
+
+export async function api(method, path, { body, pin } = {}) {
+  const headers = {};
+  if (body) headers['content-type'] = 'application/json';
+  if (pin) headers['x-organiser-pin'] = pin;
+  let res;
+  try {
+    res = await fetch(API + path, { method, headers, body: body ? JSON.stringify(body) : undefined });
+  } catch {
+    throw new Error('Cannot reach QuenchSip. Check your internet connection and try again.');
+  }
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || `Request failed (${res.status}).`);
+  return data;
+}
+
+// The organiser PIN is kept for this browser tab only.
+const pinKey = (eventId) => `qs-pin-${eventId}`;
+export const savePin = (eventId, pin) => {
+  try { sessionStorage.setItem(pinKey(eventId), pin); } catch {}
+};
+export const loadPin = (eventId) => {
+  try { return sessionStorage.getItem(pinKey(eventId)) || ''; } catch { return ''; }
+};
+
+export const escape = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+export const param = (name) => new URLSearchParams(location.search).get(name);
