@@ -174,6 +174,7 @@ $('createEvent').addEventListener('click', async () => {
         litresPerPersonHr: { low: num('lphLow'), high: num('lphHigh') },
         share: Object.fromEntries(Object.entries(share).map(([z, arr]) => [z, arr.map((p) => (Number(p) || 0) / 100)])),
         volunteerCount: num('volunteers'),
+        runnerTripMin: num('runnerTrip') || 10,
         jarSupplier: $('supplier').value === 'yes',
         signal: $('signal').value === 'yes',
         stations: stations.map((s) => ({ name: s.name, zone: s.zone.trim() || 'Unnamed' })),

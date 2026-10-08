@@ -188,21 +188,26 @@ try {
     hourCount: 3,
     litresPerPersonHr: { low: 0.25, high: 0.5 },
     share: { Field: [1, 1, 1] },
-    stations: [{ name: 'Alpha', zone: 'Field' }, { name: 'Bravo', zone: 'Field' }, { name: 'Charlie', zone: 'Field' }],
+    stations: [{ name: 'Alpha', zone: 'Field' }, { name: 'Bravo', zone: 'Field' }, { name: 'Charlie', zone: 'Field' }, { name: 'Delta', zone: 'Field' }],
     pin: '2468',
   });
   const liveStations = (await (await fetch(`${API}/events/${live.id}`)).json()).stations;
   const sidOf = (name) => liveStations.find((s) => s.name === name).id;
-  const tapApi = (name, type) => post(`/events/${live.id}/stations/${sidOf(name)}/taps`, { uuid: crypto.randomUUID(), type, deviceTs: new Date().toISOString() });
+  const tapApi = (name, type, deviceTs = new Date().toISOString()) => post(`/events/${live.id}/stations/${sidOf(name)}/taps`, { uuid: crypto.randomUUID(), type, deviceTs });
   await tapApi('Bravo', 'last_jar');
   await tapApi('Charlie', 'swap');
+  // 250 people per station at 0.25 L/hr -> 19.2 min per jar -> quiet after 29 min. Delta tapped 20 s short of that.
+  await tapApi('Delta', 'swap', new Date(Date.now() - (29 * 60 - 20) * 1000).toISOString());
 
   const board = await open(`${WEB}/board.html?e=${live.id}`);
   const tiles = `[...document.querySelectorAll('.tile')].map(t => t.querySelector('.tile-name').textContent + ': ' + t.querySelector('.tile-status').textContent)`;
-  await waitFor(board, `document.querySelectorAll('.tile').length === 3`);
-  assert.deepEqual(await board.ev(tiles), ['Bravo: Needs jars now', 'Alpha: No taps: check on volunteer', 'Charlie: OK']);
+  await waitFor(board, `document.querySelectorAll('.tile').length === 4`);
+  assert.deepEqual(await board.ev(tiles), ['Bravo: Needs jars now', 'Alpha: No taps: check on volunteer', 'Charlie: OK', 'Delta: OK']);
   assert.match(await board.ev(`document.getElementById('clock').textContent`), /^Live/);
   step('board: needs-jars first, silent station flagged, active station OK');
+
+  await waitFor(board, `${tiles}.includes('Delta: No taps: check on volunteer')`, 30000);
+  step('status changes on the board with nobody tapping (Delta went quiet)');
 
   const tapAt = Date.now();
   await tapApi('Alpha', 'swap');

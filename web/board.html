@@ -19,7 +19,11 @@
     <p id="loadError" class="error" hidden></p>
     <div class="summary" id="summary"></div>
     <div class="tiles" id="tiles"></div>
-    <p class="note">Stations that need help come first. "Needs jars now" means the volunteer tapped "Last jar". "No taps" means nobody has tapped for 1.5× the time a jar should last (at least 10 minutes), so check on the volunteer.</p>
+    <p class="note">
+      Stations that need help come first. "Needs jars now" means the volunteer tapped "Last jar", or the station will run dry before a runner could get there (runner trip time + 10 minutes).
+      Run-dry time = last swap + jars left × minutes per jar. Minutes per jar is the average of the last few swaps, or the plan until a station has two swaps.
+      "No taps" means nobody has tapped for 1.5× the minutes per jar (at least 10), so check on the volunteer.
+    </p>
   </main>
   <script type="module" src="board.js"></script>
 </body>

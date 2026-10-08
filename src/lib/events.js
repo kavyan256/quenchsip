@@ -3,6 +3,7 @@
 //   PK EVT#<id>  SK STN#<sid>   station
 //   PK EVT#<id>  SK RUN#<rid>   runner
 //   PK EVT#<id>  SK TAP#<uuid>  volunteer tap (see taps.js); sorts after the others
+//   PK EVENTS    SK <startsAt>#<id>  index of events by start time (for the scheduled projector)
 import { GetCommand, QueryCommand, TransactWriteCommand, PutCommand, DeleteCommand } from '@aws-sdk/lib-dynamodb';
 import { db, TABLE } from './db.js';
 import { hashPin, verifyPin, newId } from './pin.js';
@@ -27,6 +28,10 @@ export async function createEvent(input) {
 
   const items = [
     { PK: pk(id), SK: 'META', type: 'event', id, ...settings, pinHash: hashPin(pin), createdAt: now },
+    // Index of events by start time, so the scheduled projector finds live events without a table scan.
+    ...(settings.startsAt
+      ? [{ PK: 'EVENTS', SK: `${settings.startsAt}#${id}`, type: 'event-index', id, endsAt: new Date(Date.parse(settings.startsAt) + settings.hourCount * 3600000).toISOString() }]
+      : []),
     ...stations.map((s) => ({ PK: pk(id), SK: `STN#${newId(6)}`, type: 'station', ...s, jarsOnHand: 0, cupsOnHand: 0, stocked: false, createdAt: now })),
     ...runners.map((r) => ({ PK: pk(id), SK: `RUN#${newId(6)}`, type: 'runner', ...r, status: 'free', createdAt: now })),
   ];

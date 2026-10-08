@@ -14,8 +14,9 @@ Built for Environmental Hacks (WeMakeDevs x AWS), Waste and Energy track, 8-11 O
 - [x] Step 3: volunteer taps ("Jar swapped", "Last jar", "Cups low"), each counted exactly once
 - [x] Step 4: offline queue (taps saved on the phone first, sent when there is signal; page opens offline)
 - [x] Step 5: live board (stations needing help first, refreshes every 5 s, warns when it stops updating)
+- [x] Step 6: run-dry projection and quiet detection, computed every 2 minutes (EventBridge Scheduler → Lambda)
 - [ ] Step 0: AWS deploy (SAM: API Gateway + Lambda + DynamoDB; S3 + CloudFront for the site)
-- [ ] Next: run-dry projection and quiet alerts on a schedule
+- [ ] Next: start-of-event stock check, then runner dispatch
 
 ## Architecture
 | Piece | Local | AWS |
@@ -33,6 +34,7 @@ npm run db:start     # DynamoDB Local in Docker (in memory, telemetry off)
 npm run db:table     # create the table
 npm run api          # API on http://localhost:3001 (separate terminal)
 npm run serve        # site on http://localhost:8080 (separate terminal)
+npm run scheduler    # projector every 2 min, like EventBridge Scheduler (optional, separate terminal)
 ```
 
 Open http://localhost:8080. On a phone, use your laptop's Wi-Fi IP (e.g. `http://192.168.1.5:8080`). The site finds the API on port 3001 of the same host.
@@ -79,6 +81,15 @@ The plan is computed when the event is read, so it always matches the current st
 | OK | none of the above |
 
 Each status has its own colour and its words on the tile, so it does not rely on colour alone.
+
+**Run-dry projection** (`src/core/projection.js`, shared by the board and the scheduled Lambda so they always agree):
+- Minutes per jar = average of the last 3 gaps between swaps; until a station has two swaps, the plan's busy estimate.
+- Jars left = after "Last jar": 1 − swaps since + jars restocked since; once the start stock is known: stocked + restocked − swapped. Otherwise "not known yet".
+- Runs dry at = last swap + jars left × minutes per jar.
+- Alert when it runs dry sooner than the runner's trip time + 10 minutes.
+- Quiet when nobody has tapped for 1.5× minutes per jar (at least 10).
+
+Every 2 minutes, **EventBridge Scheduler** runs the projector Lambda (`src/api/projector.js`). It finds live events through an index (`PK = EVENTS`, no table scan), saves each station's projection and `alertSince`, and logs one JSON line per run to CloudWatch. Locally, `npm run scheduler` does the same on a timer.
 
 ## API
 | Method | Path | Who |

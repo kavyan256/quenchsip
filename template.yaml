@@ -52,6 +52,25 @@ Resources:
             Path: /{proxy+}
             Method: ANY
 
+  # Every 2 minutes: when will each station run dry, has it gone quiet? Saved on the station.
+  ProjectorFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/
+      Handler: api/projector.handler
+      Timeout: 60
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref Table
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref Table
+      Events:
+        EveryTwoMinutes:
+          Type: ScheduleV2
+          Properties:
+            ScheduleExpression: rate(2 minutes)
+
 Outputs:
   ApiUrl:
     Value: !Sub https://${HttpApi}.execute-api.${AWS::Region}.amazonaws.com

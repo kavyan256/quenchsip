@@ -11,11 +11,25 @@ let lastOk = 0;
 
 const time = (ms) => new Date(ms).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 
+// The most useful line for this tile: when it runs dry, or why it is flagged.
 function detail(t, now) {
-  if (t.status === 'needs_jars') return `Last jar tapped ${ago(t.lastJarAt, now)}`;
+  const p = t.projection;
+  const dry = p.dryAt ? (p.dry ? `Probably dry since ${time(Date.parse(p.dryAt))}` : `Runs dry about ${time(Date.parse(p.dryAt))} (in ${p.minutesToDry} min)`) : '';
+  if (t.status === 'needs_jars') return dry || `Last jar tapped ${ago(t.lastJarAt, now)}`;
   if (t.status === 'quiet') return t.lastTapAt ? `No taps for ${t.silentMin} min` : `No taps since the event started (${t.silentMin} min)`;
   if (t.status === 'cups_low') return `Cups low since ${ago(t.station.cupsLowAt, now)}`;
-  return `Last tap ${ago(t.lastTapAt, now)}`;
+  return dry || `Last tap ${ago(t.lastTapAt, now)}`;
+}
+
+// How the dry time was worked out, in plain words.
+function basis(t) {
+  const p = t.projection;
+  const parts = [];
+  if (p.jarsLeft !== null) parts.push(`${p.jarsLeft} jar${p.jarsLeft === 1 ? '' : 's'} left`);
+  else parts.push('Jars left: not known yet');
+  if (p.intervalMin) parts.push(`~${Math.round(p.intervalMin)} min per jar (${p.intervalSource === 'measured' ? 'measured' : 'from plan'})`);
+  if (t.flags.lastJar && t.flags.runningDry) parts.push(`last jar tapped ${ago(t.lastJarAt, Date.now())}`);
+  return parts.join(' · ');
 }
 
 function render() {
@@ -46,6 +60,7 @@ function render() {
         <div class="tile-name">${escape(t.station.name)}</div>
         <div class="small">${escape(t.station.zone)}</div>
         <div class="tile-detail">${escape(detail(t, now))}</div>
+        <div class="small">${escape(basis(t))}</div>
         <div class="small">Jars swapped: ${t.swapCount}${plan ? ` · ${plan}` : ''}</div>
         ${extra}
       </article>`;

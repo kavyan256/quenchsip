@@ -1,5 +1,6 @@
 // Live board: which station needs help, most urgent first. Pure functions, unit-tested.
-import { JAR_LITRES } from './plan.js';
+// Uses the same projection as the scheduled Lambda, so the board and the alerts agree.
+import { project, DEFAULT_RUNNER_TRIP_MIN } from './projection.js';
 
 export const STATUS = {
   needs_jars: { rank: 0, label: 'Needs jars now' },
@@ -9,11 +10,10 @@ export const STATUS = {
 };
 
 const MIN = 60 * 1000;
-export const QUIET_FLOOR_MIN = 10;
 
 // Is the event running at `now`, and which plan hour is it?
 export function eventClock(event, now) {
-  if (!event.startsAt) return { live: true, hourIndex: 0, known: false };
+  if (!event.startsAt) return { live: true, hourIndex: 0, known: false, start: null };
   const start = Date.parse(event.startsAt);
   const end = start + event.hourCount * 60 * MIN;
   const live = now >= start && now < end;
@@ -21,54 +21,45 @@ export function eventClock(event, now) {
   return { live, hourIndex, known: true, start, end, beforeStart: now < start };
 }
 
-// Minutes of silence before a station counts as quiet: 1.5x the planned time to empty one jar
-// (using the low demand estimate, so it does not cry wolf), never less than 10 minutes.
-export function quietAfterMin(plannedLitresPerHour) {
-  if (!(plannedLitresPerHour > 0)) return Infinity;
-  const minutesPerJar = (JAR_LITRES / plannedLitresPerHour) * 60;
-  return Math.max(QUIET_FLOOR_MIN, Math.round(1.5 * minutesPerJar));
-}
-
-// A flag stays on until a later restock clears it (restocks arrive with dispatch).
+// A flag stays on until a later restock clears it.
 const raisedAfter = (raisedAt, clearedAt) => Boolean(raisedAt) && !(clearedAt && clearedAt > raisedAt);
 
-export function stationStatus(station, { now, clock, plannedLowLph }) {
-  const needsJars = raisedAfter(station.lastJarAt, station.lastRestockAt);
+export function stationStatus(station, { now, clock, planned, runnerTripMin }) {
+  const p = project(station, { now, clock, planned, runnerTripMin });
+  const lastJar = raisedAfter(station.lastJarAt, station.lastRestockAt);
+  const needsJars = lastJar || p.alert;
   const cupsLow = raisedAfter(station.cupsLowAt, station.lastCupsRestockAt);
 
-  const quietLimit = quietAfterMin(plannedLowLph);
-  // Silence counts from the last tap, or from the start of the event if nobody has tapped yet.
-  const silentSince = station.lastTapAt ? Date.parse(station.lastTapAt) : clock.known ? clock.start : null;
-  const silentMin = silentSince !== null ? Math.max(0, (now - silentSince) / MIN) : null;
-  const quiet = clock.live && silentMin !== null && silentMin > quietLimit;
-
-  const status = needsJars ? 'needs_jars' : quiet ? 'quiet' : cupsLow ? 'cups_low' : 'ok';
+  const status = needsJars ? 'needs_jars' : p.quiet ? 'quiet' : cupsLow ? 'cups_low' : 'ok';
   return {
     status,
     ...STATUS[status],
-    flags: { needsJars, cupsLow, quiet },
-    silentMin: silentMin === null ? null : Math.floor(silentMin),
-    quietAfterMin: quietLimit,
+    flags: { needsJars, lastJar, runningDry: p.alert, cupsLow, quiet: p.quiet },
+    projection: p,
+    silentMin: p.silentMin,
     lastTapAt: station.lastTapAt || null,
     lastJarAt: station.lastJarAt || null,
     swapCount: station.swapCount || 0,
   };
 }
 
-// Tiles sorted most urgent first: longest-waiting "needs jars", then longest-silent "quiet".
+// Tiles sorted most urgent first: soonest to run dry, then longest-silent.
 export function boardView({ event, stations, plan }, now) {
   const clock = eventClock(event, now);
+  const runnerTripMin = event.runnerTripMin ?? DEFAULT_RUNNER_TRIP_MIN;
   const planByStation = Object.fromEntries((plan?.rows || []).map((r) => [r.stationId, r]));
 
   const tiles = stations.map((station) => {
     const hour = planByStation[station.id]?.byHour?.[clock.hourIndex];
-    const s = stationStatus(station, { now, clock, plannedLowLph: hour?.low?.litres ?? 0 });
+    const planned = { highLph: hour?.high?.litres ?? 0, lowLph: hour?.low?.litres ?? 0 };
+    const s = stationStatus(station, { now, clock, planned, runnerTripMin });
     return { station, ...s, plannedJarsPerHour: hour ? { low: hour.low.jars, high: hour.high.jars } : null };
   });
 
+  const dryKey = (t) => (t.projection.dryAt ? Date.parse(t.projection.dryAt) : Infinity);
   tiles.sort((a, b) => {
     if (a.rank !== b.rank) return a.rank - b.rank;
-    if (a.status === 'needs_jars') return a.lastJarAt.localeCompare(b.lastJarAt);
+    if (a.status === 'needs_jars') return dryKey(a) - dryKey(b) || (a.lastJarAt || '').localeCompare(b.lastJarAt || '');
     if (a.status === 'quiet') return (b.silentMin ?? 0) - (a.silentMin ?? 0);
     return a.station.name.localeCompare(b.station.name);
   });

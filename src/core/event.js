@@ -71,6 +71,7 @@ export function validateEvent(input) {
     startHour: number(input?.startHour, 'Start hour', 0, 23, { integer: true }),
     hourCount,
     heatFactor: number(input?.heatFactor ?? 1, 'Weather factor', 0.5, 3),
+    runnerTripMin: number(input?.runnerTripMin ?? 10, 'Runner trip time', 1, 120),
     litresPerPersonHr: { low, high },
     share,
     volunteerCount: number(input?.volunteerCount ?? 0, 'Volunteers', 0, 10000, { integer: true }),

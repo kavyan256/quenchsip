@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { eventClock, quietAfterMin, stationStatus, boardView, ago } from '../src/core/board.js';
+import { eventClock, stationStatus, boardView, ago } from '../src/core/board.js';
 
 const T0 = Date.parse('2026-10-10T12:00:00Z');
 const min = (m) => T0 + m * 60000;
@@ -16,19 +16,15 @@ test('event clock: live window and plan hour', () => {
   assert.equal(eventClock({ hourCount: 3 }, min(0)).known, false);
 });
 
-test('quiet threshold: 1.5x minutes per jar, at least 10 min', () => {
-  assert.equal(quietAfterMin(60), 30); // 20 L jar lasts 20 min at 60 L/hr
-  assert.equal(quietAfterMin(600), 10); // 2 min per jar -> floor
-  assert.equal(quietAfterMin(0), Infinity);
-});
-
-const clock = eventClock(event, min(60));
-const status = (station, now = min(60), lph = 60) => stationStatus(station, { now, clock: eventClock(event, now), plannedLowLph: lph });
+// Plan: 60-120 L/hr per station -> 10-20 min per jar; quiet after 30 min with no measurements.
+const status = (station, now = min(60)) => stationStatus(station, { now, clock: eventClock(event, now), planned: { highLph: 120, lowLph: 60 }, runnerTripMin: 10 });
 
 test('last jar means needs jars, until a later restock', () => {
   assert.equal(status({ lastJarAt: iso(50), lastTapAt: iso(50) }).status, 'needs_jars');
-  assert.equal(status({ lastJarAt: iso(50), lastTapAt: iso(55), lastRestockAt: iso(55) }).status, 'ok');
-  assert.equal(status({ lastJarAt: iso(56), lastTapAt: iso(56), lastRestockAt: iso(55) }).status, 'needs_jars');
+  // Swap at 45, "Last jar" at 50, 4 jars restocked at 55 -> 5 left, dry at 45 + 5 x 10 = 95 (35 min away)
+  const restocked = { swapTimes: [iso(45)], lastJarAt: iso(50), restocks: [{ at: iso(55), jars: 4 }], lastRestockAt: iso(55), lastTapAt: iso(55) };
+  assert.equal(status(restocked).status, 'ok');
+  assert.equal(status({ ...restocked, lastJarAt: iso(56) }).status, 'needs_jars', '"Last jar" again after the restock');
 });
 
 test('quiet only while live, after the threshold', () => {
@@ -41,7 +37,7 @@ test('quiet only while live, after the threshold', () => {
 test('needs jars beats quiet beats cups low; flags keep all three', () => {
   const s = status({ lastJarAt: iso(10), cupsLowAt: iso(10), lastTapAt: iso(10) });
   assert.equal(s.status, 'needs_jars');
-  assert.deepEqual(s.flags, { needsJars: true, cupsLow: true, quiet: true });
+  assert.deepEqual(s.flags, { needsJars: true, lastJar: true, runningDry: true, cupsLow: true, quiet: true });
   assert.equal(status({ cupsLowAt: iso(10), lastTapAt: iso(10) }).status, 'quiet');
   assert.equal(status({ cupsLowAt: iso(55), lastTapAt: iso(55) }).status, 'cups_low');
 });
@@ -59,6 +55,16 @@ test('board puts the most urgent station first', () => {
   assert.deepEqual(view.tiles.map((t) => t.station.name), ['Charlie', 'Bravo', 'Delta', 'Echo', 'Alpha']);
   assert.deepEqual(view.summary, { needs_jars: 2, quiet: 1, cups_low: 1, ok: 1 });
   assert.deepEqual(view.tiles[0].plannedJarsPerHour, { low: 3, high: 6 });
+});
+
+test('a stocked station about to run dry needs jars even without a "Last jar" tap', () => {
+  // 6 jars stocked, 4 swaps 10 min apart -> 2 left, last swap at 55 -> dry at 75: 15 min < 10 + 10
+  const s = status({ stockedJars: 6, swapTimes: [iso(25), iso(35), iso(45), iso(55)], lastTapAt: iso(55) });
+  assert.equal(s.status, 'needs_jars');
+  assert.deepEqual([s.flags.lastJar, s.flags.runningDry], [false, true]);
+  assert.equal(s.projection.minutesToDry, 15);
+  // With 8 stocked: dry at 95, 35 min away -> OK
+  assert.equal(status({ stockedJars: 8, swapTimes: [iso(25), iso(35), iso(45), iso(55)], lastTapAt: iso(55) }).status, 'ok');
 });
 
 test('time ago in plain words', () => {

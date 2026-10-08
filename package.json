@@ -12,6 +12,7 @@
     "db:stop": "docker stop quenchsip-ddb",
     "db:table": "DDB_ENDPOINT=http://localhost:8000 node scripts/create-table.js",
     "api": "DDB_ENDPOINT=http://localhost:8000 node src/local/server.js",
+    "scheduler": "DDB_ENDPOINT=http://localhost:8000 node src/local/scheduler.js",
     "sync:web": "mkdir -p web/core web/vendor && cp src/core/*.js web/core/ && cp node_modules/qrcode-generator/dist/qrcode.mjs web/vendor/qrcode.mjs",
     "serve": "npm run sync:web && python3 -m http.server 8080 -d web"
   },
