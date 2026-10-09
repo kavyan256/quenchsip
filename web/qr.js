@@ -23,7 +23,7 @@ async function load() {
     .map((s) => {
       const url = stationUrl(s.id);
       return `<div class="qr-card">
-        <div class="small">QuenchSip water station</div>
+        <div class="small">Quench water station</div>
         <div class="station-name">${escape(s.name)}</div>
         <div class="small">Zone: ${escape(s.zone)}</div>
         ${qrSvg(url)}

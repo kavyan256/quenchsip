@@ -7,7 +7,7 @@ import { recordTap } from '../lib/taps.js';
 const ID = '([a-z0-9]{4,12})';
 // [method, path, action, success status]
 const routes = [
-  ['GET', /^\/health$/, async () => ({ ok: true, service: 'quenchsip', time: new Date().toISOString() }), 200],
+  ['GET', /^\/health$/, async () => ({ ok: true, service: 'quench', time: new Date().toISOString() }), 200],
   ['POST', /^\/events$/, async ({ body }) => createEvent(body), 201],
   ['GET', new RegExp(`^/events/${ID}$`), async ({ params }) => getEvent(params[0]), 200],
   ['POST', new RegExp(`^/events/${ID}/stations$`), async ({ params, pin, body }) => addStation(params[0], pin, body), 201],

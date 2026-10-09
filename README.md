@@ -1,6 +1,6 @@
-# QuenchSip
+# Quench
 
-QuenchSip is a water control room for plastic-free events. When an event replaces plastic bottles with refill stations, QuenchSip:
+Quench is a water control room for plastic-free events. When an event replaces plastic bottles with refill stations, Quench:
 - plans how many 20 L jars and cups each station needs,
 - checks every station is stocked before the gates open,
 - predicts which station is about to run dry and sends a runner,

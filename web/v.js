@@ -160,7 +160,7 @@ async function start() {
   if (!eventId || !stationId) throw new Error('This link is incomplete. Scan the QR code at your station again.');
   const info = await loadStation();
   stationInfo = info;
-  document.title = `${info.name} · QuenchSip`;
+  document.title = `${info.name} · Quench`;
   $('eventName').textContent = info.eventName;
   $('station').textContent = info.name;
   $('zone').textContent = `Zone: ${info.zone}`;

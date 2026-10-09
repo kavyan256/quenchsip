@@ -1,6 +1,6 @@
 // The phone's tap queue, kept in IndexedDB so taps survive no signal, reloads and the browser closing.
 // IndexedDB works on plain http:// too (unlike service workers).
-const DB_NAME = 'quenchsip';
+const DB_NAME = 'quench';
 const STORE = 'taps';
 const KEEP_SENT_MS = 24 * 60 * 60 * 1000;
 

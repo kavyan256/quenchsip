@@ -21,7 +21,7 @@ export async function api(method, path, { body, pin, timeoutMs = 10000 } = {}) {
   try {
     res = await fetch(API + path, { method, headers, body: body ? JSON.stringify(body) : undefined, signal: AbortSignal.timeout(timeoutMs) });
   } catch {
-    throw new ApiError(0, 'Cannot reach QuenchSip. Check your internet connection and try again.');
+    throw new ApiError(0, 'Cannot reach Quench. Check your internet connection and try again.');
   }
   const data = await res.json().catch(() => ({}));
   if (!res.ok) throw new ApiError(res.status, data.error || `Request failed (${res.status}).`);

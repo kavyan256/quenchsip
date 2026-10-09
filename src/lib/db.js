@@ -1,7 +1,7 @@
 import { DynamoDBClient } from '@aws-sdk/client-dynamodb';
 import { DynamoDBDocumentClient } from '@aws-sdk/lib-dynamodb';
 
-export const TABLE = process.env.TABLE_NAME || 'quenchsip';
+export const TABLE = process.env.TABLE_NAME || 'quench';
 
 // DDB_ENDPOINT points at DynamoDB Local for development; unset in Lambda.
 const local = process.env.DDB_ENDPOINT

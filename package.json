@@ -1,5 +1,5 @@
 {
-  "name": "quenchsip",
+  "name": "quench",
   "version": "0.1.0",
   "private": true,
   "description": "Water control room for plastic-free events",
@@ -8,8 +8,8 @@
     "test": "node --test test/",
     "test:int": "DDB_ENDPOINT=http://localhost:8000 node --test itest/",
     "test:e2e": "node --experimental-websocket --no-warnings e2e/flow.mjs",
-    "db:start": "docker run -d --rm --name quenchsip-ddb -p 8000:8000 amazon/dynamodb-local -jar DynamoDBLocal.jar -inMemory -disableTelemetry",
-    "db:stop": "docker stop quenchsip-ddb",
+    "db:start": "docker run -d --rm --name quench-ddb -p 8000:8000 amazon/dynamodb-local -jar DynamoDBLocal.jar -inMemory -disableTelemetry",
+    "db:stop": "docker stop quench-ddb",
     "db:table": "DDB_ENDPOINT=http://localhost:8000 node scripts/create-table.js",
     "api": "DDB_ENDPOINT=http://localhost:8000 node src/local/server.js",
     "scheduler": "DDB_ENDPOINT=http://localhost:8000 node src/local/scheduler.js",

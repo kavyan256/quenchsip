@@ -26,6 +26,8 @@ async function open(url) {
     const d = JSON.parse(m.data);
     if (pending[d.id]) { pending[d.id](d); delete pending[d.id]; }
     if (d.method === 'Runtime.exceptionThrown') errors.push(d.params.exceptionDetails.exception?.description);
+    // While "offline", every request this tab makes to the API is failed as if there were no network.
+    if (d.method === 'Fetch.requestPaused') send('Fetch.failRequest', { requestId: d.params.requestId, errorReason: 'InternetDisconnected' });
   };
   const send = (method, params) => new Promise((r) => { pending[++id] = r; ws.send(JSON.stringify({ id, method, params })); });
   await send('Runtime.enable');
@@ -35,10 +37,13 @@ async function open(url) {
     return r.result.result.value;
   };
   await sleep(1500);
-  // Like airplane mode for this tab.
+  // Like airplane mode for this tab: Chrome's offline emulation, plus interception of API calls
+  // (emulation alone can leak a request when a page is navigated or closed).
   const setOffline = async (offline) => {
     await send('Network.enable');
     await send('Network.emulateNetworkConditions', { offline, latency: 0, downloadThroughput: -1, uploadThroughput: -1 });
+    if (offline) await send('Fetch.enable', { patterns: [{ urlPattern: '*:3001/*' }] });
+    else await send('Fetch.disable');
   };
   return { ev, errors, send, setOffline, close: async () => { ws.close(); await fetch(`http://127.0.0.1:${PORT}/json/close/${tab.id}`); } };
 }
@@ -150,8 +155,11 @@ try {
   await off.setOffline(true);
   await off.ev(`document.querySelector('[data-type="cups_low"]').click()`);
   await waitFor(off, `${sync}.startsWith('1 tap saved')`);
-  await off.close(); // browser tab closed with a tap still waiting
-  assert.equal((await counts2()).cupsLowCount, undefined);
+  // Leave the page while still offline (closing the tab directly can end the offline simulation first and flush).
+  await off.ev(`location.href = 'about:blank'`);
+  await sleep(500);
+  assert.equal((await counts2()).cupsLowCount, undefined, 'the waiting tap has not been sent');
+  await off.close();
   const reopened = await open(cards[1].url);
   await waitFor(reopened, `${sync} === 'All taps sent.'`);
   assert.equal((await counts2()).cupsLowCount, 1);

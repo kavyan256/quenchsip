@@ -20,7 +20,7 @@ async function load() {
   const { event, stations, runners, plan, warnings } = data;
   const byStation = Object.fromEntries(plan.rows.map((r) => [r.stationId, r.total]));
 
-  document.title = `${event.name} · QuenchSip`;
+  document.title = `${event.name} · Quench`;
   $('title').textContent = event.name;
   $('subtitle').textContent = `${event.attendees.toLocaleString('en-IN')} people · ${data.hours[0]} for ${event.hourCount} h · order ${plan.total.jarsLow}–${plan.total.jarsHigh} jars, ${plan.total.cupsLow.toLocaleString('en-IN')}–${plan.total.cupsHigh.toLocaleString('en-IN')} cups`;
   $('qrLink').href = `qr.html?e=${eventId}`;

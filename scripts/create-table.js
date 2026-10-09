@@ -6,7 +6,7 @@ const client = new DynamoDBClient({
   region: 'ap-south-1',
   credentials: { accessKeyId: 'local', secretAccessKey: 'local' },
 });
-const TableName = process.env.TABLE_NAME || 'quenchsip';
+const TableName = process.env.TABLE_NAME || 'quench';
 
 try {
   await client.send(

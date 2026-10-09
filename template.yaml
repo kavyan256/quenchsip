@@ -1,6 +1,6 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
-Description: QuenchSip - water control room for plastic-free events
+Description: Quench - water control room for plastic-free events
 
 Globals:
   Function:

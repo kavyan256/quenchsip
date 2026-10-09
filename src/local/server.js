@@ -25,4 +25,4 @@ createServer(async (req, res) => {
     body: chunks.length ? Buffer.concat(chunks).toString() : undefined,
   });
   res.writeHead(out.statusCode, { ...CORS, ...out.headers }).end(out.body);
-}).listen(PORT, '0.0.0.0', () => console.log(`QuenchSip API on http://0.0.0.0:${PORT}`));
+}).listen(PORT, '0.0.0.0', () => console.log(`Quench API on http://0.0.0.0:${PORT}`));
