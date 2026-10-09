@@ -1,9 +1,8 @@
 // API client. Locally (laptop or phone on the same Wi-Fi) the API runs on port 3001 of the same host.
-// After deploy (Step 0), set DEPLOYED_API to the ApiUrl output from `sam deploy`.
-const DEPLOYED_API = '';
+// Deployed, CloudFront serves the API at /api on the same address as the site.
 
 const isLocal = /^(localhost|127\.0\.0\.1|192\.168\.\d+\.\d+|10\.\d+\.\d+\.\d+|172\.(1[6-9]|2\d|3[01])\.\d+\.\d+)$/.test(location.hostname);
-export const API = isLocal ? `http://${location.hostname}:3001` : DEPLOYED_API;
+export const API = isLocal ? `http://${location.hostname}:3001` : `${location.origin}/api`;
 
 // Errors carry .status: the HTTP status, or 0 when there was no response (offline or timed out).
 export class ApiError extends Error {

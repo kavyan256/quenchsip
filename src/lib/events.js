@@ -2,6 +2,7 @@
 //   PK EVT#<id>  SK META        event settings + organiser PIN hash
 //   PK EVT#<id>  SK STN#<sid>   station
 //   PK EVT#<id>  SK RUN#<rid>   runner
+//   PK EVT#<id>  SK JOB#<jobId> runner job (see dispatch.js)
 //   PK EVT#<id>  SK TAP#<uuid>  volunteer tap (see taps.js); sorts after the others
 //   PK EVENTS    SK <startsAt>#<id>  index of events by start time (for the scheduled projector)
 import { GetCommand, QueryCommand, TransactWriteCommand, PutCommand, DeleteCommand } from '@aws-sdk/lib-dynamodb';
@@ -56,6 +57,8 @@ export async function getEvent(id) {
   const { PK, SK, pinHash, type, ...event } = meta;
   const stations = res.Items.filter((x) => x.type === 'station').map(({ PK, SK, type, ...s }) => ({ id: SK.slice(4), ...s }));
   const runners = res.Items.filter((x) => x.type === 'runner').map(({ PK, SK, type, ...r }) => ({ id: SK.slice(4), ...r }));
+  // Task tokens resume the dispatch state machine, so they never leave the server.
+  const jobs = res.Items.filter((x) => x.type === 'job').map(({ PK, SK, type, ackToken, doneToken, executionArn, ...j }) => ({ id: SK.slice(4), ...j }));
 
   const hours = hourLabels(event.startHour, event.hourCount);
   const plan = planEvent({ attendees: event.attendees, hours, stations, share: event.share, litresPerPersonHr: event.litresPerPersonHr, heatFactor: event.heatFactor });
@@ -66,7 +69,7 @@ export async function getEvent(id) {
     ...plan.warnings,
     ...zonesWithoutShare.map((z) => `Zone "${z}" has no crowd share, so its stations are planned at 0 jars.`),
   ];
-  return { event, hours, stations, runners, plan: { rows: plan.rows.map((r) => ({ stationId: r.station.id, byHour: r.byHour, total: r.total })), total: plan.total }, warnings };
+  return { event, hours, stations, runners, jobs, plan: { rows: plan.rows.map((r) => ({ stationId: r.station.id, byHour: r.byHour, total: r.total })), total: plan.total }, warnings };
 }
 
 async function requirePin(id, pin) {

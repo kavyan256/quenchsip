@@ -32,6 +32,14 @@ test('health', async () => {
   assert.equal(r.data.ok, true);
 });
 
+test('paths forwarded by CloudFront under /api reach the same routes', async () => {
+  assert.equal((await call('GET', '/api/health')).data.ok, true);
+  const created = await call('POST', '/api/events', newEvent());
+  assert.equal(created.status, 201);
+  assert.equal((await call('GET', `/api/events/${created.data.id}`)).data.event.name, 'Test Fest');
+  assert.equal((await call('GET', '/apifoo/health')).status, 404, 'only a whole /api segment is dropped');
+});
+
 test('create and read an event; plan matches U1; no PIN hash leaks', async () => {
   const created = await call('POST', '/events', newEvent());
   assert.equal(created.status, 201);

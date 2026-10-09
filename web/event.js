@@ -25,6 +25,7 @@ async function load() {
   $('subtitle').textContent = `${event.attendees.toLocaleString('en-IN')} people · ${data.hours[0]} for ${event.hourCount} h · order ${plan.total.jarsLow}–${plan.total.jarsHigh} jars, ${plan.total.cupsLow.toLocaleString('en-IN')}–${plan.total.cupsHigh.toLocaleString('en-IN')} cups`;
   $('qrLink').href = `qr.html?e=${eventId}`;
   $('boardLink').href = `board.html?e=${eventId}`;
+  $('summaryLink').href = `summary.html?e=${eventId}`;
 
   $('warnings').innerHTML = warnings.length
     ? `<div class="status warn"><strong>Fix before the event:</strong><ul>${warnings.map((w) => `<li>${escape(w)}</li>`).join('')}</ul></div>`
@@ -41,7 +42,7 @@ async function load() {
 
   $('runners').innerHTML = runners.length
     ? runners
-        .map((r) => `<li><span>${escape(r.name)}</span><button class="ghost" type="button" data-remove-runner="${r.id}" aria-label="Remove ${escape(r.name)}">Remove</button></li>`)
+        .map((r) => `<li><span>${escape(r.name)} <a class="small" href="r.html?e=${eventId}&r=${r.id}">runner link</a></span><button class="ghost" type="button" data-remove-runner="${r.id}" aria-label="Remove ${escape(r.name)}">Remove</button></li>`)
         .join('')
     : '<li class="small">No runners yet.</li>';
 

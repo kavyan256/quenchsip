@@ -1,0 +1,14 @@
+# sam deploy settings. Credentials come from the AWS profile below (or AWS_PROFILE).
+version = 0.1
+
+[default.global.parameters]
+stack_name = "quench"
+region = "ap-south-1"
+profile = "quenchsip"
+
+[default.deploy.parameters]
+resolve_s3 = true
+s3_prefix = "quench"
+capabilities = "CAPABILITY_IAM"
+confirm_changeset = false
+fail_on_empty_changeset = false

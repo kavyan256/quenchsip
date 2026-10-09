@@ -1,7 +1,8 @@
 import { api, param, escape } from './api.js';
-import { TAP_TYPES, newTapId } from './core/tap.js';
+import { newTapId } from './core/tap.js';
 import { outcome, retryDelay, queueSummary } from './core/sync.js';
 import { saveTap, stationTaps, pruneSent } from './queue.js';
+import { t, applyStatic, languageButton } from './i18n.js';
 
 const $ = (id) => document.getElementById(id);
 const eventId = param('e');
@@ -12,10 +13,10 @@ const DOUBLE_TAP_MS = 3000;
 const lastPress = {};
 
 const time = (iso) => new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-const tapLabel = (t) => (t.type === 'stocked' ? `Stocked (${t.jars} jars, ${t.cups} cups)` : TAP_TYPES[t.type]);
+const TAP_KEYS = { swap: 'jarSwapped', last_jar: 'lastJar', cups_low: 'cupsLow', stocked: 'stocked' };
+const tapLabel = (x) => (x.type === 'stocked' ? t('stockedTap', { jars: x.jars, cups: x.cups }) : t(TAP_KEYS[x.type]));
 let stationInfo = null;
 let recounting = false;
-const STATUS_TEXT = { pending: 'waiting to send', sent: 'sent', failed: 'not saved' };
 
 function feedback(kind, html) {
   $('feedback').className = `feedback ${kind}`;
@@ -26,11 +27,11 @@ async function render() {
   const taps = await stationTaps(eventId, stationId);
   const summary = queueSummary(taps);
   $('syncState').className = `sync ${summary.kind}`;
-  $('syncState').textContent = summary.text;
+  $('syncState').textContent = summary.kind === 'warn' ? t('failed', { n: summary.failed }) : summary.kind === 'pending' ? t('waiting', { n: summary.waiting }) : t('allSent');
   const latest = taps.slice(-5).reverse();
   $('recent').innerHTML = latest.length
-    ? latest.map((t) => `<li><span>${escape(tapLabel(t))}</span><span class="small">${time(t.at)} · ${STATUS_TEXT[t.status]}${t.error ? `: ${escape(t.error)}` : ''}</span></li>`).join('')
-    : '<li class="small">None yet.</li>';
+    ? latest.map((x) => `<li><span>${escape(tapLabel(x))}</span><span class="small">${time(x.at)} · ${t(`st_${x.status}`)}${x.error ? `: ${escape(x.error)}` : ''}</span></li>`).join('')
+    : `<li class="small">${t('noneYet')}</li>`;
   renderStock(taps);
 }
 
@@ -44,8 +45,8 @@ function renderStock(taps) {
       : null;
   $('stockCard').hidden = Boolean(stock) && !recounting;
   $('stockDone').hidden = !stock || recounting;
-  if (stock) $('stockSummary').textContent = `Stocked at ${time(stock.at)}: ${stock.jars} jars, ${stock.cups} cups`;
-  if (stationInfo?.plannedJars) $('stockHint').textContent = `Count the full jars at your station, including the one on the tap, and the cups. The plan expects about ${stationInfo.plannedJars} jars for the whole event.`;
+  if (stock) $('stockSummary').textContent = t('stockedAt', { time: time(stock.at), jars: stock.jars, cups: stock.cups });
+  $('stockHint').textContent = stationInfo?.plannedJars ? t('countHintPlan', { jars: stationInfo.plannedJars }) : t('countHint');
 }
 
 // Sends waiting taps oldest first. Stops at the first "no signal" and tries again later.
@@ -88,7 +89,7 @@ $('buttons').addEventListener('click', async (e) => {
   const type = button.dataset.type;
   const now = Date.now();
   if (now - (lastPress[type] || 0) < DOUBLE_TAP_MS) {
-    feedback('ok', `Already counted that ${escape(TAP_TYPES[type]).toLowerCase()} tap.`);
+    feedback('ok', escape(t('alreadyCounted')));
     return;
   }
   lastPress[type] = now;
@@ -96,7 +97,7 @@ $('buttons').addEventListener('click', async (e) => {
   // Save on the phone first, so the tap is never lost, then try to send.
   const tap = { uuid: newTapId(), eventId, stationId, type, at: new Date(now).toISOString(), status: 'pending' };
   await saveTap(tap);
-  feedback('ok', `<strong>Saved:</strong> ${escape(TAP_TYPES[type])} at ${time(tap.at)}`);
+  feedback('ok', `<strong>${t('saved')}</strong> ${escape(t('savedTap', { label: t(TAP_KEYS[type]), time: time(tap.at) }))}`);
   await render();
   attempt = 0;
   flush();
@@ -109,7 +110,7 @@ $('stockCard').addEventListener('submit', async (e) => {
   const tap = { uuid: newTapId(), eventId, stationId, type: 'stocked', jars, cups, at: new Date().toISOString(), status: 'pending' };
   await saveTap(tap);
   recounting = false;
-  feedback('ok', `<strong>Saved:</strong> ${jars} jars and ${cups} cups at ${time(tap.at)}`);
+  feedback('ok', `<strong>${t('saved')}</strong> ${escape(t('savedStock', { jars, cups, time: time(tap.at) }))}`);
   await render();
   attempt = 0;
   flush();
@@ -163,8 +164,8 @@ async function start() {
   document.title = `${info.name} · Quench`;
   $('eventName').textContent = info.eventName;
   $('station').textContent = info.name;
-  $('zone').textContent = `Zone: ${info.zone}`;
-  if (info.offline) feedback('pending', 'No signal right now. Keep tapping: taps are saved on this phone and sent later.');
+  $('zone').textContent = t('zone', { zone: info.zone });
+  if (info.offline) feedback('pending', escape(t('noSignal')));
   $('buttons').hidden = false;
   await pruneSent(eventId, stationId);
   await render();
@@ -175,6 +176,12 @@ async function start() {
 if ('serviceWorker' in navigator && window.isSecureContext) {
   navigator.serviceWorker.register('sw.js').catch(() => {});
 }
+
+applyStatic();
+languageButton($('lang'), () => {
+  if (stationInfo) $('zone').textContent = t('zone', { zone: stationInfo.zone });
+  render();
+});
 
 start().catch((err) => {
   $('station').textContent = 'Station not found';

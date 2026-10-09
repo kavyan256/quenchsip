@@ -1,6 +1,6 @@
 import { planEvent, readiness } from './core/plan.js';
 import { hourLabels as labelsFor } from './core/event.js';
-import { api, savePin, escape } from './api.js';
+import { api, savePin, escape, param } from './api.js';
 
 const $ = (id) => document.getElementById(id);
 const num = (id) => Number($(id).value) || 0;
@@ -190,5 +190,38 @@ $('createEvent').addEventListener('click', async () => {
   }
 });
 
+// "Use as next year's plan": start from an earlier event's settings (the date is left for the new event).
+async function prefill(fromId) {
+  const { event, stations: old, runners } = await api('GET', `/events/${fromId}`);
+  $('name').value = event.name;
+  $('attendees').value = event.attendees;
+  $('startHour').value = event.startHour;
+  $('hourCount').value = event.hourCount;
+  $('lphLow').value = event.litresPerPersonHr.low;
+  $('lphHigh').value = event.litresPerPersonHr.high;
+  $('volunteers').value = event.volunteerCount ?? old.length;
+  $('runnerTrip').value = event.runnerTripMin ?? 10;
+  $('supplier').value = event.jarSupplier === false ? 'no' : 'yes';
+  $('signal').value = event.signal === false ? 'no' : 'yes';
+  const heat = [...$('heat').options].find((o) => Number(o.value) === event.heatFactor);
+  if (heat) $('heat').value = heat.value;
+  stations = old.map((s, i) => ({ id: `s${i + 1}`, name: s.name, zone: s.zone }));
+  nextId = stations.length + 1;
+  share = Object.fromEntries(Object.entries(event.share).map(([z, arr]) => [z, arr.map((f) => Math.round(f * 100))]));
+  $('runners').value = (runners || []).map((r) => r.name).join('\n');
+  $('createStatus').textContent = `Started from "${event.name}". Pick the new date and a PIN, then save.`;
+}
+
 renderStations();
 refreshAll();
+const fromId = param('from');
+if (fromId) {
+  prefill(fromId)
+    .then(() => {
+      renderStations();
+      refreshAll();
+    })
+    .catch((err) => {
+      $('createStatus').textContent = `Could not load the earlier event: ${err.message}`;
+    });
+}

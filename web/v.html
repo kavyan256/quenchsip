@@ -8,46 +8,46 @@
 </head>
 <body>
   <main class="volunteer">
-    <p class="small" id="eventName">Quench</p>
-    <p class="small">You are at</p>
+    <div class="top-row"><p class="small" id="eventName">Quench</p><button type="button" class="ghost lang-btn" id="lang">हिंदी</button></div>
+    <p class="small" data-i18n="youAreAt">You are at</p>
     <div class="station-name" id="station">Loading…</div>
     <p class="small" id="zone"></p>
     <p id="loadError" class="error" hidden></p>
 
     <div id="buttons" hidden>
       <form class="card stock-card" id="stockCard" hidden>
-        <h2>Before the gates open</h2>
+        <h2 data-i18n="beforeGates">Before the gates open</h2>
         <p class="small" id="stockHint">Count the full jars at your station, including the one on the tap, and the cups.</p>
         <div class="stock-row">
-          <label>Full jars <input id="stockJars" name="jars" type="number" inputmode="numeric" min="0" max="200" required placeholder="e.g. 6"></label>
-          <label>Cups <input id="stockCups" name="cups" type="number" inputmode="numeric" min="0" max="100000" required placeholder="e.g. 400"></label>
+          <label><span data-i18n="fullJars">Full jars</span> <input id="stockJars" name="jars" type="number" inputmode="numeric" min="0" max="200" required placeholder="e.g. 6"></label>
+          <label><span data-i18n="cups">Cups</span> <input id="stockCups" name="cups" type="number" inputmode="numeric" min="0" max="100000" required placeholder="e.g. 400"></label>
         </div>
-        <button type="submit" id="confirmStock">Confirm stock</button>
+        <button type="submit" id="confirmStock" data-i18n="confirmStock">Confirm stock</button>
       </form>
 
       <button type="button" class="tap tap-swap" data-type="swap">
-        <span class="tap-title">Jar swapped</span>
-        <span class="tap-hint">Tap each time you put a new jar on</span>
+        <span class="tap-title" data-i18n="jarSwapped">Jar swapped</span>
+        <span class="tap-hint" data-i18n="jarSwappedHint">Tap each time you put a new jar on</span>
       </button>
       <button type="button" class="tap tap-last" data-type="last_jar">
-        <span class="tap-title">Last jar</span>
-        <span class="tap-hint">Tap when the jar on the tap is your last full one</span>
+        <span class="tap-title" data-i18n="lastJar">Last jar</span>
+        <span class="tap-hint" data-i18n="lastJarHint">Tap when the jar on the tap is your last full one</span>
       </button>
       <button type="button" class="tap tap-cups" data-type="cups_low">
-        <span class="tap-title">Cups low</span>
+        <span class="tap-title" data-i18n="cupsLow">Cups low</span>
       </button>
 
       <div id="feedback" class="feedback" role="status" aria-live="polite"></div>
 
       <p id="syncState" class="sync" aria-live="polite"></p>
 
-      <h2 class="recent-title">Your taps</h2>
+      <h2 class="recent-title" data-i18n="yourTaps">Your taps</h2>
       <ul class="list" id="recent"><li class="small">None yet.</li></ul>
 
       <details class="stock-done" id="stockDone" hidden>
         <summary id="stockSummary">Stocked</summary>
-        <p class="small">Count again if jars or cups were added or taken away without a runner.</p>
-        <button type="button" class="ghost" id="recount">Count again</button>
+        <p class="small" data-i18n="recountHint">Count again if jars or cups were added or taken away without a runner.</p>
+        <button type="button" class="ghost" id="recount" data-i18n="countAgain">Count again</button>
       </details>
     </div>
   </main>

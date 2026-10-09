@@ -19,7 +19,8 @@ export function retryDelay(attempt, random = Math.random) {
 export function queueSummary(taps) {
   const waiting = taps.filter((t) => t.status === 'pending').length;
   const failed = taps.filter((t) => t.status === 'failed').length;
-  if (failed) return { kind: 'warn', text: `${failed} tap${failed === 1 ? '' : 's'} could not be saved. Tell the organiser.` };
-  if (waiting) return { kind: 'pending', text: `${waiting} tap${waiting === 1 ? '' : 's'} saved on this phone, waiting to send.` };
-  return { kind: 'ok', text: 'All taps sent.' };
+  // Counts are included so the page can word it in the volunteer's language.
+  if (failed) return { kind: 'warn', waiting, failed, text: `${failed} tap${failed === 1 ? '' : 's'} could not be saved. Tell the organiser.` };
+  if (waiting) return { kind: 'pending', waiting, failed, text: `${waiting} tap${waiting === 1 ? '' : 's'} saved on this phone, waiting to send.` };
+  return { kind: 'ok', waiting, failed, text: 'All taps sent.' };
 }

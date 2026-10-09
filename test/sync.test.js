@@ -20,8 +20,8 @@ test('retry delay adds at most 20% jitter', () => {
 });
 
 test('summary tells the volunteer what is waiting', () => {
-  assert.deepEqual(queueSummary([]), { kind: 'ok', text: 'All taps sent.' });
-  assert.deepEqual(queueSummary([{ status: 'sent' }, { status: 'pending' }]), { kind: 'pending', text: '1 tap saved on this phone, waiting to send.' });
+  assert.deepEqual(queueSummary([]), { kind: 'ok', waiting: 0, failed: 0, text: 'All taps sent.' });
+  assert.deepEqual(queueSummary([{ status: 'sent' }, { status: 'pending' }]), { kind: 'pending', waiting: 1, failed: 0, text: '1 tap saved on this phone, waiting to send.' });
   assert.equal(queueSummary([{ status: 'pending' }, { status: 'pending' }, { status: 'pending' }]).text, '3 taps saved on this phone, waiting to send.');
   assert.equal(queueSummary([{ status: 'pending' }, { status: 'failed' }]).kind, 'warn');
 });

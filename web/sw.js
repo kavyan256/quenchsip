@@ -1,7 +1,7 @@
 // Service worker: keeps the volunteer page's files on the phone so it opens without signal.
-// API calls go to another origin and are never cached; taps are queued in IndexedDB by the page.
-const CACHE = 'quench-v1';
-const SHELL = ['v.html', 'v.js', 'api.js', 'queue.js', 'style.css', 'core/tap.js', 'core/sync.js'];
+// API calls (/api/* or another origin) are never cached; taps are queued in IndexedDB by the page.
+const CACHE = 'quench-v3';
+const SHELL = ['v.html', 'v.js', 'api.js', 'queue.js', 'i18n.js', 'style.css', 'core/tap.js', 'core/sync.js'];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(caches.open(CACHE).then((c) => c.addAll(SHELL)).then(() => self.skipWaiting()));
@@ -16,7 +16,7 @@ self.addEventListener('activate', (event) => {
 // Network first (so updates arrive), cached copy when offline. v.html?e=..&s=.. matches the cached v.html.
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
-  if (event.request.method !== 'GET' || url.origin !== self.location.origin) return;
+  if (event.request.method !== 'GET' || url.origin !== self.location.origin || url.pathname.startsWith('/api/')) return;
   event.respondWith(
     fetch(event.request)
       .then((res) => {

@@ -2,18 +2,22 @@
 // wrong/right PIN -> QR sheet -> each QR opens the right volunteer station.
 // Needs: DynamoDB Local + table, `npm run api` (port 3001), `npm run serve` (port 8080), Google Chrome.
 // Run: npm run test:e2e
-import { spawn } from 'node:child_process';
+import { spawn, execFile } from 'node:child_process';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import assert from 'node:assert/strict';
 
 const WEB = process.env.WEB_URL || 'http://localhost:8080';
+// API calls the test treats as "the network" when simulating no signal.
+const API_PATTERN = process.env.API_URL ? `${process.env.API_URL}/*` : '*:3001/*';
 const PORT = 9333;
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 const profile = mkdtempSync(join(tmpdir(), 'qs-e2e-'));
-const chrome = spawn(process.env.CHROME || 'google-chrome', ['--headless=new', '--disable-gpu', '--no-proxy-server', `--remote-debugging-port=${PORT}`, `--user-data-dir=${profile}`, 'about:blank'], { stdio: 'ignore' });
+// CHROME_PROXY: route Chrome through a proxy (for networks that need one to reach the deployed site).
+const proxyFlag = process.env.CHROME_PROXY ? `--proxy-server=${process.env.CHROME_PROXY}` : '--no-proxy-server';
+const chrome = spawn(process.env.CHROME || 'google-chrome', ['--headless=new', '--disable-gpu', proxyFlag, `--remote-debugging-port=${PORT}`, `--user-data-dir=${profile}`, 'about:blank'], { stdio: 'ignore' });
 
 async function open(url) {
   const tab = await (await fetch(`http://127.0.0.1:${PORT}/json/new?${encodeURIComponent(url)}`, { method: 'PUT' })).json();
@@ -27,7 +31,10 @@ async function open(url) {
     if (pending[d.id]) { pending[d.id](d); delete pending[d.id]; }
     if (d.method === 'Runtime.exceptionThrown') errors.push(d.params.exceptionDetails.exception?.description);
     // While "offline", every request this tab makes to the API is failed as if there were no network.
-    if (d.method === 'Fetch.requestPaused') send('Fetch.failRequest', { requestId: d.params.requestId, errorReason: 'InternetDisconnected' });
+    if (d.method === 'Fetch.requestPaused') {
+      if (serverError) send('Fetch.fulfillRequest', { requestId: d.params.requestId, responseCode: 500, body: Buffer.from('{"error":"Injected server error"}').toString('base64') });
+      else send('Fetch.failRequest', { requestId: d.params.requestId, errorReason: 'InternetDisconnected' });
+    }
   };
   const send = (method, params) => new Promise((r) => { pending[++id] = r; ws.send(JSON.stringify({ id, method, params })); });
   await send('Runtime.enable');
@@ -39,13 +46,20 @@ async function open(url) {
   await sleep(1500);
   // Like airplane mode for this tab: Chrome's offline emulation, plus interception of API calls
   // (emulation alone can leak a request when a page is navigated or closed).
+  // While on, the API answers 500 (a broken server) instead of the network being down.
+  let serverError = false;
+  const setServerError = async (on) => {
+    serverError = on;
+    if (on) await send('Fetch.enable', { patterns: [{ urlPattern: API_PATTERN }] });
+    else await send('Fetch.disable');
+  };
   const setOffline = async (offline) => {
     await send('Network.enable');
     await send('Network.emulateNetworkConditions', { offline, latency: 0, downloadThroughput: -1, uploadThroughput: -1 });
-    if (offline) await send('Fetch.enable', { patterns: [{ urlPattern: '*:3001/*' }] });
+    if (offline) await send('Fetch.enable', { patterns: [{ urlPattern: API_PATTERN }] });
     else await send('Fetch.disable');
   };
-  return { ev, errors, send, setOffline, close: async () => { ws.close(); await fetch(`http://127.0.0.1:${PORT}/json/close/${tab.id}`); } };
+  return { ev, errors, send, setOffline, setServerError, close: async () => { ws.close(); await fetch(`http://127.0.0.1:${PORT}/json/close/${tab.id}`); } };
 }
 
 // Polls a page expression until it is truthy, or fails after the timeout.
@@ -61,16 +75,27 @@ async function waitFor(page, expr, timeoutMs = 15000) {
 
 const step = (name) => console.log(`ok - ${name}`);
 
+// JSON call to the Quench API. Through curl when a proxy is set, because Node's fetch ignores proxies
+// (needed to reach the deployed site from networks that only allow traffic through a proxy).
+async function apiCall(method, url, body) {
+  if (!process.env.HTTPS_PROXY || /localhost|127\.0\.0\.1/.test(url)) {
+    return (await fetch(url, { method, headers: body ? { 'content-type': 'application/json' } : {}, body: body ? JSON.stringify(body) : undefined })).json();
+  }
+  const args = ['-s', '-X', method, url, ...(body ? ['-H', 'content-type: application/json', '-d', JSON.stringify(body)] : [])];
+  const out = await new Promise((resolve, reject) => execFile('curl', args, (err, stdout) => (err ? reject(err) : resolve(stdout))));
+  return JSON.parse(out);
+}
+
 try {
   await sleep(1500);
 
   const page = await open(`${WEB}/plan.html`);
   await page.ev(`document.getElementById('pin').value = '2468'; document.getElementById('createEvent').click();`);
-  await sleep(2000);
+  await waitFor(page, `location.pathname === '/event.html'`, 15000);
   const path = await page.ev('location.pathname + location.search');
   assert.match(path, /^\/event\.html\?e=[a-z0-9]+$/);
   const eventId = path.split('=')[1];
-  assert.equal(await page.ev(`document.querySelectorAll('#stations li').length`), 4);
+  await waitFor(page, `document.querySelectorAll('#stations li').length === 4`, 15000);
   step('plan saves an event and opens the organiser page');
 
   await page.ev(`{ document.getElementById('pin').value = '0000'; const f = document.getElementById('addStation'); f.elements.name.value = 'Hack'; f.elements.zone.value = 'Gate'; f.requestSubmit(); }`);
@@ -88,8 +113,9 @@ try {
   step('right PIN adds a station');
 
   const qr = await open(`${WEB}/qr.html?e=${eventId}`);
-  assert.equal(await qr.ev(`document.querySelectorAll('.qr-card svg').length`), 5);
-  const cards = await qr.ev(`[...document.querySelectorAll('.qr-card')].map(c => ({ name: c.querySelector('.station-name').textContent, url: c.querySelector('.small:last-child').textContent }))`);
+  assert.equal(await qr.ev(`document.querySelectorAll('#grid .qr-card svg').length`), 5);
+  assert.equal(await qr.ev(`document.querySelectorAll('#runnerGrid .qr-card svg').length`), 2, 'one card per runner too');
+  const cards = await qr.ev(`[...document.querySelectorAll('#grid .qr-card')].map(c => ({ name: c.querySelector('.station-name').textContent, url: c.querySelector('.small:last-child').textContent }))`);
   await qr.close();
   step('QR sheet has one code per station');
 
@@ -103,7 +129,7 @@ try {
   // Step 3: volunteer taps
   const API = process.env.API_URL || 'http://localhost:3001';
   const stationId = new URL(cards[0].url).searchParams.get('s');
-  const counts = async () => (await (await fetch(`${API}/events/${eventId}`)).json()).stations.find((s) => s.id === stationId);
+  const counts = async () => (await apiCall('GET', `${API}/events/${eventId}`)).stations.find((s) => s.id === stationId);
   const vol = await open(cards[0].url);
   // Timed until the server has counted it (the phone shows "Saved" sooner, once it is queued).
   const started = Date.now();
@@ -133,9 +159,23 @@ try {
   await vol.close();
   step('"Last jar" and "Cups low" are saved and listed');
 
+  // Hindi switch covers every volunteer button and status line, then back to English.
+  const hiPage = await open(cards[0].url);
+  await waitFor(hiPage, `document.getElementById('syncState').textContent !== ''`);
+  await hiPage.ev(`document.getElementById('lang').click()`);
+  await waitFor(hiPage, `document.getElementById('syncState').textContent.includes('टैप')`);
+  const hi = await hiPage.ev(`[...document.querySelectorAll('button.tap .tap-title'), document.getElementById('syncState')].map(e => e.textContent)`);
+  assert.deepEqual(hi.slice(0, 3), ['जार बदला', 'आख़िरी जार', 'कप कम हैं']);
+  assert.match(hi[3], /टैप/);
+  assert.equal(await hiPage.ev('document.documentElement.lang'), 'hi');
+  await hiPage.ev(`document.getElementById('lang').click()`);
+  assert.equal(await hiPage.ev(`document.querySelector('button.tap .tap-title').textContent`), 'Jar swapped');
+  await hiPage.close();
+  step('Hindi switch translates every volunteer button and the status line');
+
   // Step 4: offline queue
   const sid2 = new URL(cards[1].url).searchParams.get('s');
-  const counts2 = async () => (await (await fetch(`${API}/events/${eventId}`)).json()).stations.find((s) => s.id === sid2);
+  const counts2 = async () => (await apiCall('GET', `${API}/events/${eventId}`)).stations.find((s) => s.id === sid2);
   const sync = `document.getElementById('syncState').textContent`;
   const off = await open(cards[1].url);
   await off.setOffline(true);
@@ -167,27 +207,48 @@ try {
   await reopened.close();
   step('tab closed mid-queue: the waiting tap survives and is sent on reopen');
 
-  // Page opens with no signal: its own web server (stopped mid-test) + service worker cache.
-  const SW_PORT = 8091;
-  const webDir = new URL('../web/', import.meta.url).pathname;
-  const staticServer = spawn('python3', ['-m', 'http.server', String(SW_PORT), '-d', webDir], { stdio: 'ignore' });
-  await sleep(1000);
-  const swUrl = `http://localhost:${SW_PORT}/v.html?e=${eventId}&s=${sid2}`;
-  const sw = await open(swUrl);
-  await waitFor(sw, 'navigator.serviceWorker.controller !== null', 8000);
-  await new Promise((r) => { staticServer.once('exit', r); staticServer.kill(); });
-  await sw.setOffline(true);
-  await sw.ev('location.reload()');
-  await sleep(2000);
-  assert.equal(await sw.ev(`document.getElementById('station').textContent`), cards[1].name);
-  assert.match(await sw.ev(`document.getElementById('feedback').textContent`), /No signal right now/);
-  assert.equal(await sw.ev(`document.getElementById('buttons').hidden`), false);
-  await sw.close();
-  step('page opens with no signal (service worker + saved station name)');
+  // Page opens with no signal: its own local web server (stopped mid-test) + service worker cache.
+  // Local runs only: it needs the local API for the station name.
+  if (!process.env.WEB_URL) {
+    // Page opens with no signal: its own web server (stopped mid-test) + service worker cache.
+    const SW_PORT = 8091;
+    const webDir = new URL('../web/', import.meta.url).pathname;
+    const staticServer = spawn('python3', ['-m', 'http.server', String(SW_PORT), '-d', webDir], { stdio: 'ignore' });
+    await sleep(1000);
+    const swUrl = `http://localhost:${SW_PORT}/v.html?e=${eventId}&s=${sid2}`;
+    const sw = await open(swUrl);
+    await waitFor(sw, 'navigator.serviceWorker.controller !== null', 8000);
+    await new Promise((r) => { staticServer.once('exit', r); staticServer.kill(); });
+    await sw.setOffline(true);
+    await sw.ev('location.reload()');
+    await sleep(2000);
+    assert.equal(await sw.ev(`document.getElementById('station').textContent`), cards[1].name);
+    assert.match(await sw.ev(`document.getElementById('feedback').textContent`), /No signal right now/);
+    assert.equal(await sw.ev(`document.getElementById('buttons').hidden`), false);
+    await sw.close();
+    step('page opens with no signal (service worker + saved station name)');
+  } else {
+    console.log('skip - page opens with no signal (local runs only)');
+  }
+
+  // L3: the server fails (500). The tap waits on the phone and is delivered once the server recovers.
+  const broken = await open(cards[1].url);
+  await waitFor(broken, `document.getElementById('syncState').textContent !== ''`);
+  const before = (await counts2()).cupsLowCount || 0;
+  await broken.setServerError(true);
+  await broken.ev(`document.querySelector('[data-type="cups_low"]').click()`);
+  await waitFor(broken, `document.getElementById('syncState').textContent.startsWith('1 tap saved')`);
+  await sleep(1500);
+  assert.equal((await counts2()).cupsLowCount || 0, before, 'not stored while the server fails');
+  await broken.setServerError(false);
+  await waitFor(broken, `document.getElementById('syncState').textContent === 'All taps sent.'`, 40000);
+  assert.equal((await counts2()).cupsLowCount, before + 1, 'delivered exactly once after recovery');
+  await broken.close();
+  step('server errors: the tap waits on the phone and is sent once the server recovers');
 
   // Live board: an event that started 30 minutes ago.
   // 1,000 people in one zone, 3 stations: ~83 L/hr each at the low rate -> quiet after 22 min.
-  const post = (path, body) => fetch(`${API}${path}`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(body) }).then((r) => r.json());
+  const post = (path, body) => apiCall('POST', `${API}${path}`, body);
   const live = await post('/events', {
     name: 'Board Test',
     startsAt: new Date(Date.now() - 30 * 60000).toISOString(),
@@ -199,7 +260,7 @@ try {
     stations: [{ name: 'Alpha', zone: 'Field' }, { name: 'Bravo', zone: 'Field' }, { name: 'Charlie', zone: 'Field' }, { name: 'Delta', zone: 'Field' }],
     pin: '2468',
   });
-  const liveStations = (await (await fetch(`${API}/events/${live.id}`)).json()).stations;
+  const liveStations = (await apiCall('GET', `${API}/events/${live.id}`)).stations;
   const sidOf = (name) => liveStations.find((s) => s.name === name).id;
   const tapApi = (name, type, deviceTs = new Date().toISOString(), extra = {}) => post(`/events/${live.id}/stations/${sidOf(name)}/taps`, { uuid: crypto.randomUUID(), type, deviceTs, ...extra });
   // Every station confirmed 10 jars at the start (~96 min of water at the plan's busy rate).
@@ -234,6 +295,24 @@ try {
   await board.close();
   step('board says when it has stopped updating, and recovers');
 
+  // L2: a board with 20 stations loads quickly on a 4G-like connection.
+  const big = await post('/events', {
+    name: 'Board Test', startsAt: new Date(Date.now() - 5 * 60000).toISOString(), attendees: 10000, startHour: 0, hourCount: 3,
+    litresPerPersonHr: { low: 0.25, high: 0.5 }, share: { Field: [1, 1, 1] },
+    stations: Array.from({ length: 20 }, (_, i) => ({ name: `Station ${i + 1}`, zone: 'Field' })), pin: '2468',
+  });
+  const slow = await open('about:blank');
+  await slow.send('Network.enable');
+  // ~4G: 50 ms latency, 4 Mbit/s down, 1 Mbit/s up.
+  await slow.send('Network.emulateNetworkConditions', { offline: false, latency: 50, downloadThroughput: 500000, uploadThroughput: 125000 });
+  const t0 = Date.now();
+  await slow.send('Page.navigate', { url: `${WEB}/board.html?e=${big.id}` });
+  await waitFor(slow, `document.querySelectorAll('.tile').length === 20`, 10000);
+  const boardMs = Date.now() - t0;
+  await slow.close();
+  assert.ok(boardMs < 2000, `board took ${boardMs} ms`);
+  step(`board with 20 stations ready in ${(boardMs / 1000).toFixed(1)} s on a 4G-like connection (gate: under 2 s)`);
+
   // Start-of-event stock check: 3 stations, 2 confirmed by API, the third through the volunteer screen.
   const pre = await post('/events', {
     name: 'Stock Test',
@@ -243,7 +322,7 @@ try {
     stations: [{ name: 'North', zone: 'Field' }, { name: 'South', zone: 'Field' }, { name: 'West', zone: 'Field' }],
     pin: '2468',
   });
-  const preStations = (await (await fetch(`${API}/events/${pre.id}`)).json()).stations;
+  const preStations = (await apiCall('GET', `${API}/events/${pre.id}`)).stations;
   const preSid = (name) => preStations.find((s) => s.name === name).id;
   for (const name of ['North', 'South']) {
     await post(`/events/${pre.id}/stations/${preSid(name)}/taps`, { uuid: crypto.randomUUID(), type: 'stocked', jars: 8, cups: 400, deviceTs: new Date().toISOString() });
@@ -267,6 +346,64 @@ try {
   assert.match(await preBoard.ev(`[...document.querySelectorAll('.tile')].find(t => t.textContent.includes('West')).textContent`), /6 jars left/);
   await preBoard.close();
   step('volunteer confirms stock on the phone; board clears the flag and shows jars left');
+
+  // Runner dispatch: "Last jar" -> job on the runner's phone -> on my way -> delivered -> station restocked.
+  const disp = await post('/events', {
+    name: 'Dispatch Test',
+    startsAt: new Date(Date.now() - 10 * 60000).toISOString(),
+    // 200 people at 0.5 L/hr -> 12 min per jar: the last jar runs dry in ~2 min, 5 jars last ~50 min.
+    attendees: 200, startHour: 0, hourCount: 3, runnerTripMin: 10,
+    litresPerPersonHr: { low: 0.25, high: 0.5 }, share: { Field: [1, 1, 1] },
+    stations: [{ name: 'North', zone: 'Field' }],
+    runners: [{ name: 'Asha' }],
+    pin: '2468',
+  });
+  const dispData = await apiCall('GET', `${API}/events/${disp.id}`);
+  const northId = dispData.stations[0].id;
+  const ashaId = dispData.runners[0].id;
+  // Stocked a minute before the gates opened.
+  await post(`/events/${disp.id}/stations/${northId}/taps`, { uuid: crypto.randomUUID(), type: 'stocked', jars: 10, cups: 400, deviceTs: new Date(Date.now() - 11 * 60000).toISOString() });
+  const runnerPage = await open(`${WEB}/r.html?e=${disp.id}&r=${ashaId}`);
+  await waitFor(runnerPage, `!document.getElementById('idle').hidden`);
+  const dispBoard = await open(`${WEB}/board.html?e=${disp.id}`);
+
+  await post(`/events/${disp.id}/stations/${northId}/taps`, { uuid: crypto.randomUUID(), type: 'last_jar', deviceTs: new Date().toISOString() });
+  await waitFor(runnerPage, `!document.getElementById('job').hidden && document.getElementById('jobWhere').textContent === 'to North (Field)'`, 20000);
+  assert.match(await runnerPage.ev(`document.getElementById('jobTitle').textContent`), /^Take \d+ jars?/);
+  await waitFor(dispBoard, `document.querySelector('.tile .job-chip')?.textContent.startsWith('Asha: Runner assigned')`, 15000);
+  step('"Last jar" sends a job to the runner\'s phone and shows it on the board');
+
+  await runnerPage.ev(`document.getElementById('onMyWay').click()`);
+  await waitFor(runnerPage, `document.getElementById('jobState').textContent === 'On your way'`, 15000);
+  await waitFor(dispBoard, `document.querySelector('.tile .job-chip')?.textContent.startsWith('Asha: Runner on the way')`, 15000);
+  step('runner taps "On my way"; the board shows it');
+
+  await runnerPage.ev(`document.getElementById('deliveredJars').value = '4'; document.getElementById('deliveredForm').requestSubmit();`);
+  await waitFor(runnerPage, `!document.getElementById('idle').hidden`, 15000);
+  await waitFor(dispBoard, `!document.querySelector('.tile .job-chip') && document.querySelector('.tile .tile-status').textContent === 'OK'`, 15000);
+  assert.match(await dispBoard.ev(`document.querySelector('.tile').textContent`), /5 jars left/); // last jar (1) + 4 delivered
+  const north = (await apiCall('GET', `${API}/events/${disp.id}`)).stations[0];
+  assert.equal(north.restocks.length, 1);
+  assert.deepEqual([runnerPage.errors, dispBoard.errors], [[], []]);
+  await runnerPage.close();
+  await dispBoard.close();
+  step('runner taps "Delivered": station restocked to 5 jars, board back to OK, runner free');
+
+  const summary = await open(`${WEB}/summary.html?e=${disp.id}`);
+  await waitFor(summary, `!document.getElementById('content').hidden`);
+  assert.match(await summary.ev(`document.getElementById('formula').textContent`), /^0 jars swapped × 20 L = 0 L dispensed/);
+  assert.match(await summary.ev(`document.getElementById('dispatch').textContent`), /1 of 1runner jobs delivered/);
+  assert.match(await summary.ev(`document.getElementById('dry').textContent`), /1 of 1stations stocked before the start/);
+  assert.deepEqual(summary.errors, []);
+  await summary.close();
+  step('summary shows water (with its formula), stocking and runner jobs');
+
+  const again = await open(`${WEB}/plan.html?from=${disp.id}`);
+  await waitFor(again, `document.getElementById('name').value === 'Dispatch Test'`);
+  assert.equal(await again.ev(`document.querySelectorAll('#stations .station-row').length`), 1);
+  assert.equal(await again.ev(`document.getElementById('runners').value`), 'Asha');
+  await again.close();
+  step('"Use as next year\'s plan" starts the plan from this event');
 
   const bad = await open(`${WEB}/v.html?e=${eventId}&s=zzzzzz`);
   assert.match(await bad.ev(`document.getElementById('loadError').textContent`), /removed/);

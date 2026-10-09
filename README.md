@@ -16,14 +16,20 @@ Built for Environmental Hacks (WeMakeDevs x AWS), Waste and Energy track, 8-11 O
 - [x] Step 5: live board (stations needing help first, refreshes every 5 s, warns when it stops updating)
 - [x] Step 6: run-dry projection and quiet detection, computed every 2 minutes (EventBridge Scheduler → Lambda)
 - [x] Step 7: start-of-event stock check (volunteer counts jars and cups; board flags stations not stocked)
-- [ ] Step 0: AWS deploy (SAM: API Gateway + Lambda + DynamoDB; S3 + CloudFront for the site)
-- [ ] Next: runner dispatch (Step Functions)
+- [x] Step 0: deployed on AWS (ap-south-1): CloudFront + S3 site, API Gateway + Lambda, DynamoDB, EventBridge Scheduler → projector Lambda, CloudWatch Logs
+- [x] Step 8: runner dispatch with Step Functions (assign, "On my way", reassign on timeout, "Delivered" restocks)
+- [x] Step 9: SQS tap queue with dead-letter queue (500 taps in 30 s on AWS, none lost)
+- [x] Step 10: summary page (litres, "up to N bottles" with formula, dry minutes, runner jobs, CSV, reuse as next year's plan)
+- [x] Step 11: simulation page: same evening with a WhatsApp group vs Quench (labelled simulation, assumptions on screen)
+- [x] Step 12: Hindi on volunteer and runner screens, keyboard focus, light/dark checked
 
 ## Architecture
 | Piece | Local | AWS |
 |---|---|---|
-| Website | `python3 -m http.server` on `web/` | S3 + CloudFront |
-| API | `src/local/server.js` → Lambda handler | API Gateway (HTTP API) → Lambda (`src/api/handler.js`) |
+| Website | `python3 -m http.server` on `web/` | S3 + CloudFront (same address as the API) |
+| Taps | written straight away | API → SQS → consumer Lambda (dead-letter queue after 3 tries) |
+| Dispatch | assigned straight away; retried by the local scheduler | Step Functions state machine per job |
+| API | `src/local/server.js` → Lambda handler | CloudFront `/api/*` → API Gateway (HTTP API) → Lambda (`src/api/handler.js`) |
 | Data | DynamoDB Local (Docker) | DynamoDB (single table, `PK`/`SK`) |
 
 ## Run locally
@@ -40,11 +46,25 @@ npm run scheduler    # projector every 2 min, like EventBridge Scheduler (option
 
 Open http://localhost:8080. On a phone, use your laptop's Wi-Fi IP (e.g. `http://192.168.1.5:8080`). The site finds the API on port 3001 of the same host.
 
+## Deploy to AWS
+Needs an AWS profile with deploy rights (`samconfig.toml` uses profile `quenchsip`, region `ap-south-1`, stack `quench`).
+
+```bash
+npm run deploy       # sam build + sam deploy: DynamoDB, API Gateway + Lambda, projector Lambda + EventBridge schedule, S3 + CloudFront
+npm run deploy:web   # upload web/ to S3 and clear the CloudFront cache; prints the site address
+python3 scripts/clear_test_events.py        # list test events in the live table (add --yes to delete them)
+```
+
+The site and the API share one CloudFront address: the site from S3, and `/api/*` forwarded to API Gateway. The page uses `/api` when it is not on localhost or a Wi-Fi address, so nothing needs configuring after deploy. Remove everything with `sam delete`.
+
 ## Tests
 ```bash
 npm test             # unit: plan maths, validation, PIN hashing
 npm run test:int     # integration: API handler against DynamoDB Local
-npm run test:e2e     # browser: plan -> event -> PIN -> QR -> station (needs api + serve running)
+npm run test:e2e     # browser: plan, PIN, QR, taps, offline, Hindi, board, stock, dispatch, summary (needs api + serve running)
+node scripts/load-test.mjs https://<site>/api 500 30   # 500 taps in 30 s, checks none are lost
+# against the deployed site:
+WEB_URL=https://<site> API_URL=https://<site>/api npm run test:e2e
 ```
 
 ## Layout
@@ -94,6 +114,13 @@ Each status has its own colour and its words on the tile, so it does not rely on
 
 Every 2 minutes, **EventBridge Scheduler** runs the projector Lambda (`src/api/projector.js`). It finds live events through an index (`PK = EVENTS`, no table scan), saves each station's projection and `alertSince`, and logs one JSON line per run to CloudWatch. Locally, `npm run scheduler` does the same on a timer.
 
+**Runner dispatch** (`src/lib/dispatch.js`, state machine in `template.yaml`). When a station needs jars (a "Last jar" tap, or the projection says it runs dry before a runner could get there) and has no open job, a job is opened and a Step Functions execution starts:
+assign the free runner who has waited longest (retry every 30 s, give up after ~10 min) → wait for "On my way" (180 s, then reassign to someone else) → wait for "Delivered" (45 min, then close as not confirmed). The runner's taps resume the execution with its task token (never sent to browsers). "Delivered" restocks the station, which clears "Last jar" and moves the run-dry time. How many jars: about an hour at the station's rate minus what is left, 1 to 6.
+
+**Summary** (`summary.html?e=<id>`): litres = jars swapped × 20; "up to N bottles" = litres ÷ 0.5, PET at 10-13 g per bottle; dry minutes (added up by the scheduled check while a station is past its run-dry time); stations stocked before the start; runner jobs and median times; CSV download; "Use as next year's plan".
+
+**Simulation** (`demo.html`, `src/core/sim.js`): the same 3-hour evening minute by minute, with a WhatsApp group (volunteers message on last jar sometimes and when empty; the lead reads after a delay) and with Quench (real projection code, missed taps modelled). Over 20 evenings: typical group 83 vs Quench 10 dry station-minutes at 90% taps; a very disciplined group 20 vs 11; at 70% taps the disciplined group does as well or better. These are model results, not event data.
+
 ## API
 | Method | Path | Who |
 |---|---|---|
@@ -101,7 +128,10 @@ Every 2 minutes, **EventBridge Scheduler** runs the projector Lambda (`src/api/p
 | POST | `/events` | organiser (sets PIN) |
 | GET | `/events/{id}` | anyone with the link |
 | POST, DELETE | `/events/{id}/stations[/{sid}]`, `/events/{id}/runners[/{rid}]` | organiser (`x-organiser-pin` header) |
-| POST | `/events/{id}/stations/{sid}/taps` | volunteer (station QR link) |
+| POST | `/events/{id}/stations/{sid}/taps` | volunteer (station QR link); 202 when queued on AWS |
+| GET | `/events/{id}/summary` | anyone with the link |
+| GET | `/events/{id}/runners/{rid}` | runner (runner QR link) |
+| POST | `/events/{id}/jobs/{jid}/ack`, `/events/{id}/jobs/{jid}/done` | the assigned runner |
 
 ## Assumptions in the plan
 | Value | Default | Source |

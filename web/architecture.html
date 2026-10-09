@@ -1,0 +1,115 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>How it runs on AWS · Quench</title>
+  <link rel="stylesheet" href="style.css">
+  <style>
+    .arch { width: 100%; height: auto; display: block; }
+    .arch .box { fill: var(--surface); stroke: var(--border); stroke-width: 2; }
+    .arch .aws { fill: var(--ok-bg); stroke: var(--accent); stroke-width: 2; }
+    .arch .t { fill: var(--text); font: 600 15px system-ui, sans-serif; }
+    .arch .s { fill: var(--muted); font: 13px system-ui, sans-serif; }
+    .arch .line { stroke: var(--muted); stroke-width: 2; fill: none; marker-end: url(#arrow); }
+    .arch .label { fill: var(--muted); font: 12px system-ui, sans-serif; }
+    .arch #arrow path { fill: var(--muted); }
+  </style>
+</head>
+<body>
+  <main class="board">
+    <p><a href="index.html">← Quench</a></p>
+    <h1>How Quench runs on AWS</h1>
+    <p class="lead">One CloudFront address serves the site and the API. Everything below runs in ap-south-1 (Mumbai) and is deployed with one SAM template.</p>
+
+    <section class="card">
+      <svg class="arch" viewBox="0 0 1100 560" role="img" aria-labelledby="archTitle archDesc">
+        <title id="archTitle">Quench architecture</title>
+        <desc id="archDesc">Phones reach CloudFront. CloudFront serves the site from S3 and forwards /api to API Gateway and the API Lambda. Taps go through SQS to a consumer Lambda that writes to DynamoDB. EventBridge Scheduler runs the projector Lambda every 2 minutes, which starts Step Functions dispatch executions. All functions log to CloudWatch.</desc>
+        <defs>
+          <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z"/></marker>
+        </defs>
+
+        <!-- People -->
+        <rect class="box" x="20" y="40" width="180" height="150" rx="12"/>
+        <text class="t" x="40" y="72">Phones</text>
+        <text class="s" x="40" y="100">Volunteer: taps</text>
+        <text class="s" x="40" y="122">Runner: jobs</text>
+        <text class="s" x="40" y="144">Organiser: plan,</text>
+        <text class="s" x="40" y="164">board, summary</text>
+
+        <!-- Edge -->
+        <rect class="aws" x="250" y="60" width="170" height="110" rx="12"/>
+        <text class="t" x="268" y="92">CloudFront</text>
+        <text class="s" x="268" y="118">https, one address</text>
+        <text class="s" x="268" y="140">/ → site, /api → API</text>
+
+        <rect class="aws" x="250" y="230" width="170" height="80" rx="12"/>
+        <text class="t" x="268" y="262">S3</text>
+        <text class="s" x="268" y="286">website (private)</text>
+
+        <!-- API -->
+        <rect class="aws" x="480" y="60" width="200" height="110" rx="12"/>
+        <text class="t" x="498" y="92">API Gateway</text>
+        <text class="t" x="498" y="118">+ Lambda (API)</text>
+        <text class="s" x="498" y="142">events, taps, runners</text>
+
+        <rect class="aws" x="480" y="230" width="200" height="80" rx="12"/>
+        <text class="t" x="498" y="262">SQS tap queue</text>
+        <text class="s" x="498" y="286">+ dead-letter queue</text>
+
+        <rect class="aws" x="480" y="360" width="200" height="80" rx="12"/>
+        <text class="t" x="498" y="392">Lambda</text>
+        <text class="s" x="498" y="416">writes each tap once</text>
+
+        <!-- Data -->
+        <rect class="aws" x="760" y="230" width="170" height="80" rx="12"/>
+        <text class="t" x="778" y="262">DynamoDB</text>
+        <text class="s" x="778" y="286">one table</text>
+
+        <!-- Scheduled -->
+        <rect class="aws" x="760" y="40" width="300" height="90" rx="12"/>
+        <text class="t" x="778" y="72">EventBridge Scheduler → Lambda</text>
+        <text class="s" x="778" y="96">every 2 min: when will each station</text>
+        <text class="s" x="778" y="116">run dry? silent stations?</text>
+
+        <rect class="aws" x="760" y="380" width="300" height="100" rx="12"/>
+        <text class="t" x="778" y="412">Step Functions (dispatch)</text>
+        <text class="s" x="778" y="436">assign runner → wait "On my way"</text>
+        <text class="s" x="778" y="456">(reassign) → wait "Delivered"</text>
+
+        <rect class="box" x="20" y="470" width="400" height="60" rx="12"/>
+        <text class="t" x="40" y="506">CloudWatch Logs: every function, every scheduler run</text>
+
+        <!-- Arrows -->
+        <path class="line" d="M200,115 H245"/>
+        <path class="line" d="M335,170 V225"/>
+        <path class="line" d="M420,115 H475"/>
+        <text class="label" x="425" y="105">/api</text>
+        <path class="line" d="M580,170 V225"/>
+        <text class="label" x="588" y="205">taps</text>
+        <path class="line" d="M580,310 V355"/>
+        <path class="line" d="M680,400 H720 V270 H755"/>
+        <path class="line" d="M680,115 H720 V255 H755"/>
+        <text class="label" x="688" y="105">read / write</text>
+        <path class="line" d="M910,130 V225"/>
+        <path class="line" d="M1000,130 V375"/>
+        <text class="label" x="1008" y="250">start job</text>
+        <path class="line" d="M680,140 H700 V430 H755"/>
+        <text class="label" x="600" y="455">"Last jar", runner taps</text>
+      </svg>
+    </section>
+
+    <section class="card">
+      <h2>Why each service</h2>
+      <ul>
+        <li><strong>EventBridge Scheduler + Lambda</strong>: works out run-dry times every 2 minutes, even when nobody is tapping, so silent stations and coming shortages are caught.</li>
+        <li><strong>Step Functions</strong>: each runner job waits minutes for people; it reassigns when a runner does not respond and closes jobs nobody confirms.</li>
+        <li><strong>SQS</strong>: a burst of taps at the headliner never waits on database writes; taps that keep failing go to a dead-letter queue instead of being lost.</li>
+        <li><strong>DynamoDB</strong>: conditional writes make every tap count exactly once and stop two runners taking the same job.</li>
+        <li><strong>CloudFront + S3</strong>: one https address, so the volunteer page works offline (service worker) and phones need no setup.</li>
+      </ul>
+    </section>
+  </main>
+</body>
+</html>

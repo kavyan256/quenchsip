@@ -53,5 +53,11 @@ export async function recordTap(eventId, stationId, input) {
     if (stationReason === 'ConditionalCheckFailed') throw new HttpError(404, 'Station not found.');
     throw err;
   }
+  if (tap.type === 'last_jar') {
+    // Best effort: a failure here must not lose the tap; the scheduled projector will dispatch anyway.
+    await import('./dispatch.js')
+      .then(({ startDispatch }) => startDispatch(eventId, stationId, 'last_jar'))
+      .catch((err) => console.error('dispatch after last jar failed:', err.message));
+  }
   return { uuid: tap.uuid, duplicate: false, tappedAt: tap.tappedAt };
 }

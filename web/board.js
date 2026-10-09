@@ -1,5 +1,6 @@
 import { api, escape, param } from './api.js';
 import { boardView, ago, STATUS } from './core/board.js';
+import { jobLine } from './core/dispatch.js';
 
 const $ = (id) => document.getElementById(id);
 const eventId = param('e');
@@ -55,6 +56,8 @@ function render() {
   $('tiles').innerHTML = view.tiles
     .map((t) => {
       const extra = t.status !== 'cups_low' && t.flags.cupsLow ? '<span class="chip st-cups_low">Cups low</span>' : '';
+      const job = t.station.openJobId && (data.jobs || []).find((j) => j.id === t.station.openJobId);
+      const jobHtml = job ? `<span class="job-chip">${escape(jobLine(job))}${job.jars ? ` · ${job.jars} jars` : ''}</span>` : '';
       const plan = t.plannedJarsPerHour ? `Plan: ${t.plannedJarsPerHour.low}–${t.plannedJarsPerHour.high} jars this hour` : '';
       return `<article class="tile st-${t.status}" aria-label="${escape(t.station.name)}: ${escape(t.label)}">
         <div class="tile-status">${escape(t.label)}</div>
@@ -63,6 +66,7 @@ function render() {
         <div class="tile-detail">${escape(detail(t, now))}</div>
         <div class="small">${escape(basis(t))}</div>
         <div class="small">Jars swapped: ${t.swapCount}${plan ? ` · ${plan}` : ''}</div>
+        ${jobHtml}
         ${extra}
       </article>`;
     })

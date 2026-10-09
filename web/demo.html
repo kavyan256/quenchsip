@@ -1,0 +1,66 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Simulation · Quench</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <main class="board">
+    <p class="no-print"><a href="index.html">← Quench</a></p>
+    <h1>Same evening, two ways of sending runners</h1>
+    <p class="lead"><strong>Simulation, not real event data.</strong> 8 water stations, a 3-hour evening with a headliner from 19:30 to 20:30, 3 runners. Quench uses its real run-dry code; WhatsApp is a lead reading volunteers' messages.</p>
+
+    <section class="card">
+      <div class="grid">
+        <label>WhatsApp group
+          <select id="group">
+            <option value="typical">Typical: 60% of last jars reported, read after 4 min</option>
+            <option value="disciplined">Very disciplined: every last jar reported, read after 2 min</option>
+          </select>
+        </label>
+        <label>Quench taps recorded
+          <select id="tapRate">
+            <option value="0.9">90% of swaps tapped</option>
+            <option value="0.7">70% of swaps tapped</option>
+            <option value="0.5">50% of swaps tapped</option>
+          </select>
+        </label>
+        <label>Runners
+          <select id="runners"><option>2</option><option selected>3</option><option>5</option></select>
+        </label>
+        <label>Evening (seed)
+          <input id="seed" type="number" min="1" max="999" value="1">
+        </label>
+      </div>
+      <p><button type="button" id="play">▶ Play the evening (30 s)</button> <span class="small" id="clock"></span></p>
+    </section>
+
+    <div class="sim-grid">
+      <section class="card">
+        <h2>WhatsApp group</h2>
+        <p class="sim-counter" id="dryW">0 dry minutes</p>
+        <div class="sim-tiles" id="tilesW"></div>
+      </section>
+      <section class="card">
+        <h2>Quench</h2>
+        <p class="sim-counter" id="dryQ">0 dry minutes</p>
+        <div class="sim-tiles" id="tilesQ"></div>
+      </section>
+    </div>
+
+    <section class="card">
+      <h2>Over 20 different evenings (same settings)</h2>
+      <div class="totals" id="avg"></div>
+      <p class="note" id="verdict"></p>
+    </section>
+
+    <section class="card">
+      <h2>Assumptions</h2>
+      <ul class="note" id="assumptions"></ul>
+    </section>
+  </main>
+  <script type="module" src="demo.js"></script>
+</body>
+</html>

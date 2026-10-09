@@ -2,6 +2,16 @@ AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
 Description: Quench - water control room for plastic-free events
 
+Parameters:
+  AckTimeoutSeconds:
+    Type: Number
+    Default: 180
+    Description: How long a runner has to tap "On my way" before the job goes to someone else
+  DoneTimeoutSeconds:
+    Type: Number
+    Default: 2700
+    Description: How long a runner has to tap "Delivered" before the job is closed as not confirmed
+
 Globals:
   Function:
     Runtime: nodejs22.x
@@ -41,9 +51,21 @@ Resources:
       Environment:
         Variables:
           TABLE_NAME: !Ref Table
+          STATE_MACHINE_ARN: !Ref DispatchStateMachine
+          ACK_TIMEOUT_SECONDS: !Ref AckTimeoutSeconds
+          DONE_TIMEOUT_SECONDS: !Ref DoneTimeoutSeconds
+          TAP_QUEUE_URL: !Ref TapQueue
       Policies:
         - DynamoDBCrudPolicy:
             TableName: !Ref Table
+        - StepFunctionsExecutionPolicy:
+            StateMachineName: !GetAtt DispatchStateMachine.Name
+        - Statement:
+            - Effect: Allow
+              Action: [states:SendTaskSuccess]
+              Resource: '*' # task tokens are not tied to a resource ARN
+        - SQSSendMessagePolicy:
+            QueueName: !GetAtt TapQueue.QueueName
       Events:
         Api:
           Type: HttpApi
@@ -62,17 +84,268 @@ Resources:
       Environment:
         Variables:
           TABLE_NAME: !Ref Table
+          STATE_MACHINE_ARN: !Ref DispatchStateMachine
+          ACK_TIMEOUT_SECONDS: !Ref AckTimeoutSeconds
+          DONE_TIMEOUT_SECONDS: !Ref DoneTimeoutSeconds
       Policies:
         - DynamoDBCrudPolicy:
             TableName: !Ref Table
+        - StepFunctionsExecutionPolicy:
+            StateMachineName: !GetAtt DispatchStateMachine.Name
       Events:
         EveryTwoMinutes:
           Type: ScheduleV2
           Properties:
             ScheduleExpression: rate(2 minutes)
 
+  # Taps go through a queue so a burst at the peak never waits on database writes.
+  TapQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      VisibilityTimeout: 60
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt TapDeadLetterQueue.Arn
+        maxReceiveCount: 3
+
+  TapDeadLetterQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      MessageRetentionPeriod: 1209600 # 14 days, to inspect taps that could not be saved
+
+  TapConsumerFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/
+      Handler: api/tapConsumer.handler
+      Timeout: 30
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref Table
+          STATE_MACHINE_ARN: !Ref DispatchStateMachine
+          ACK_TIMEOUT_SECONDS: !Ref AckTimeoutSeconds
+          DONE_TIMEOUT_SECONDS: !Ref DoneTimeoutSeconds
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref Table
+        - StepFunctionsExecutionPolicy:
+            StateMachineName: !GetAtt DispatchStateMachine.Name
+      Events:
+        Taps:
+          Type: SQS
+          Properties:
+            Queue: !GetAtt TapQueue.Arn
+            BatchSize: 10
+            FunctionResponseTypes: [ReportBatchItemFailures]
+            ScalingConfig:
+              MaximumConcurrency: 2 # leave Lambda capacity for the API (new accounts may only run 10 at once)
+
+  # One function for every step of the dispatch state machine.
+  DispatchFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: src/
+      Handler: api/dispatcher.handler
+      Environment:
+        Variables:
+          TABLE_NAME: !Ref Table
+      Policies:
+        - DynamoDBCrudPolicy:
+            TableName: !Ref Table
+        - Statement:
+            - Effect: Allow
+              Action: [states:SendTaskSuccess]
+              Resource: '*'
+
+  # Runner dispatch, one execution per job:
+  # assign a free runner (retry every 30 s) -> wait for "On my way" (reassign on timeout)
+  # -> wait for "Delivered" (close as not confirmed on timeout).
+  DispatchStateMachine:
+    Type: AWS::Serverless::StateMachine
+    Properties:
+      Type: STANDARD
+      Policies:
+        - LambdaInvokePolicy:
+            FunctionName: !Ref DispatchFunction
+      DefinitionSubstitutions:
+        DispatchFunctionArn: !GetAtt DispatchFunction.Arn
+      Definition:
+        Comment: Quench runner dispatch
+        StartAt: AssignRunner
+        States:
+          AssignRunner:
+            Type: Task
+            Resource: arn:aws:states:::lambda:invoke
+            Parameters:
+              FunctionName: ${DispatchFunctionArn}
+              Payload:
+                action: assign
+                eventId.$: $.eventId
+                jobId.$: $.jobId
+            ResultSelector:
+              assigned.$: $.Payload.assigned
+              giveUp.$: $.Payload.giveUp
+            ResultPath: $.assign
+            Next: RunnerFound
+          RunnerFound:
+            Type: Choice
+            Choices:
+              - Variable: $.assign.assigned
+                BooleanEquals: true
+                Next: WaitForOnMyWay
+              - Variable: $.assign.giveUp
+                BooleanEquals: true
+                Next: NoRunnerFree
+            Default: WaitForFreeRunner
+          WaitForFreeRunner:
+            Type: Wait
+            Seconds: 30
+            Next: AssignRunner
+          WaitForOnMyWay:
+            Type: Task
+            Resource: arn:aws:states:::lambda:invoke.waitForTaskToken
+            TimeoutSecondsPath: $.ackTimeoutSeconds
+            Parameters:
+              FunctionName: ${DispatchFunctionArn}
+              Payload:
+                action: wait_ack
+                eventId.$: $.eventId
+                jobId.$: $.jobId
+                token.$: $$.Task.Token
+            ResultPath: $.ack
+            Catch:
+              - ErrorEquals: [States.Timeout]
+                ResultPath: $.timeout
+                Next: ReassignRunner
+            Next: WaitForDelivered
+          ReassignRunner:
+            Type: Task
+            Resource: arn:aws:states:::lambda:invoke
+            Parameters:
+              FunctionName: ${DispatchFunctionArn}
+              Payload:
+                action: ack_timeout
+                eventId.$: $.eventId
+                jobId.$: $.jobId
+            ResultPath: null
+            Next: AssignRunner
+          WaitForDelivered:
+            Type: Task
+            Resource: arn:aws:states:::lambda:invoke.waitForTaskToken
+            TimeoutSecondsPath: $.doneTimeoutSeconds
+            Parameters:
+              FunctionName: ${DispatchFunctionArn}
+              Payload:
+                action: wait_done
+                eventId.$: $.eventId
+                jobId.$: $.jobId
+                token.$: $$.Task.Token
+            ResultPath: $.done
+            Catch:
+              - ErrorEquals: [States.Timeout]
+                ResultPath: $.timeout
+                Next: NotConfirmed
+            Next: Delivered
+          NotConfirmed:
+            Type: Task
+            Resource: arn:aws:states:::lambda:invoke
+            Parameters:
+              FunctionName: ${DispatchFunctionArn}
+              Payload:
+                action: done_timeout
+                eventId.$: $.eventId
+                jobId.$: $.jobId
+            ResultPath: null
+            End: true
+          NoRunnerFree:
+            Type: Succeed
+          Delivered:
+            Type: Succeed
+
+  # Website: private S3 bucket behind CloudFront. CloudFront also forwards /api/* to the HTTP API,
+  # so the site and the API share one https address (no CORS, and the service worker can run).
+  WebBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      OwnershipControls:
+        Rules:
+          - ObjectOwnership: BucketOwnerEnforced
+
+  WebOriginAccess:
+    Type: AWS::CloudFront::OriginAccessControl
+    Properties:
+      OriginAccessControlConfig:
+        Name: !Sub ${AWS::StackName}-web
+        OriginAccessControlOriginType: s3
+        SigningBehavior: always
+        SigningProtocol: sigv4
+
+  WebDistribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Enabled: true
+        Comment: Quench website and API
+        DefaultRootObject: index.html
+        HttpVersion: http2and3
+        PriceClass: PriceClass_200 # includes India
+        Origins:
+          - Id: web
+            DomainName: !GetAtt WebBucket.RegionalDomainName
+            OriginAccessControlId: !GetAtt WebOriginAccess.Id
+            S3OriginConfig:
+              OriginAccessIdentity: ''
+          - Id: api
+            DomainName: !Sub ${HttpApi}.execute-api.${AWS::Region}.amazonaws.com
+            CustomOriginConfig:
+              OriginProtocolPolicy: https-only
+              OriginSSLProtocols: [TLSv1.2]
+        DefaultCacheBehavior:
+          TargetOriginId: web
+          ViewerProtocolPolicy: redirect-to-https
+          Compress: true
+          AllowedMethods: [GET, HEAD]
+          CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6 # Managed-CachingOptimized
+        CacheBehaviors:
+          - PathPattern: /api/*
+            TargetOriginId: api
+            ViewerProtocolPolicy: https-only
+            AllowedMethods: [GET, HEAD, OPTIONS, PUT, POST, PATCH, DELETE]
+            CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad # Managed-CachingDisabled
+            OriginRequestPolicyId: b689b0a8-53d0-40ab-baf2-68738e2966ac # Managed-AllViewerExceptHostHeader
+
+  WebBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref WebBucket
+      PolicyDocument:
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: cloudfront.amazonaws.com
+            Action: s3:GetObject
+            Resource: !Sub ${WebBucket.Arn}/*
+            Condition:
+              StringEquals:
+                AWS:SourceArn: !Sub arn:aws:cloudfront::${AWS::AccountId}:distribution/${WebDistribution}
+
 Outputs:
+  TapDeadLetterQueueUrl:
+    Value: !Ref TapDeadLetterQueue
+  DispatchStateMachineArn:
+    Value: !Ref DispatchStateMachine
   ApiUrl:
     Value: !Sub https://${HttpApi}.execute-api.${AWS::Region}.amazonaws.com
   TableName:
     Value: !Ref Table
+  WebUrl:
+    Description: The site; the API is at /api on the same address
+    Value: !Sub https://${WebDistribution.DomainName}
+  WebBucketName:
+    Value: !Ref WebBucket
+  DistributionId:
+    Value: !Ref WebDistribution
