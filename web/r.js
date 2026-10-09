@@ -1,6 +1,7 @@
 import { api, param, escape } from './api.js';
 import { JOB_STATES } from './core/dispatch.js';
 import { t, applyStatic, languageButton } from './i18n.js';
+import { mountArt } from './art.js';
 
 const $ = (id) => document.getElementById(id);
 const eventId = param('e');
@@ -68,7 +69,7 @@ function render(data) {
   $('job').className = `card job-card ${job.state === 'acked' ? 'on-way' : 'new-job'}`;
   $('jobState').textContent = job.state === 'acked' ? t('onYourWay') : t('newJob');
   $('jobTitle').textContent = t('take', { n: job.jars }) + (job.cups ? t('andCups', { n: job.cups }) : '');
-  $('jobWhere').textContent = t('to', { station: job.stationName, zone: job.zone });
+  $('jobWhere').textContent = job.zone ? t('to', { station: job.stationName, zone: job.zone }) : t('toPlain', { station: job.stationName });
   $('jobWhy').textContent = job.reason === 'last_jar' ? t('whyLastJar') : job.dryAt ? t('whyDry', { time: time(job.dryAt) }) : '';
   $('onMyWay').hidden = job.state === 'acked';
   if (isNew) {
@@ -109,6 +110,7 @@ $('deliveredForm').addEventListener('submit', async (e) => {
   refresh();
 });
 
+mountArt();
 applyStatic();
 languageButton($('lang'), () => lastData && render(lastData));
 

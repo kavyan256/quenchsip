@@ -23,44 +23,68 @@
 
     <!-- Set up: a checklist that ticks itself -->
     <section id="tab-setup" role="tabpanel" aria-labelledby="tabBtn-setup" hidden>
-      <p class="progress"><span id="progressText">Ready in 4 steps</span> <span id="progressDots" aria-hidden="true"></span></p>
+      <section class="progress-card" aria-labelledby="progressText">
+        <span class="art" data-art="clipboard" id="progressArt"></span>
+        <div class="progress-body">
+          <p class="progress-title" id="progressText">Ready in 4 steps</p>
+          <div class="progress-bar" id="progressBar" role="img" aria-label=""><span></span><span></span><span></span><span></span></div>
+        </div>
+      </section>
       <p class="status warn" id="viewOnly" hidden>View only on this device. Open your organiser link to make changes.</p>
 
       <article class="step" id="step1">
-        <div class="step-head"><span class="step-mark"></span><h2>Stations</h2></div>
-        <p id="stationsLine"></p>
-        <div class="action-row"><button type="button" class="ghost" id="editStations" data-edit>Edit names and busy spots</button></div>
+        <span class="art" data-art="station"></span>
+        <div class="step-body">
+          <div class="step-head"><span class="step-mark"></span><h2>Stations and runners</h2></div>
+          <p class="step-main" id="stationsLine"></p>
+          <p class="small" id="stationsNames"></p>
+          <div class="action-row"><button type="button" class="ghost" id="editStations" data-edit>Edit names and busy spots</button></div>
+        </div>
       </article>
 
       <article class="step" id="step2">
-        <div class="step-head"><span class="step-mark"></span><h2>Order jars and cups</h2></div>
-        <p class="order" id="orderLine"></p>
-        <p class="small" id="orderBasis"></p>
-        <div class="action-row">
-          <button type="button" class="primary-btn" id="shareOrder" data-edit>Share with supplier</button>
-          <button type="button" class="ghost" id="markOrdered" data-edit>Mark as ordered</button>
+        <span class="art" data-art="truck"></span>
+        <div class="step-body">
+          <div class="step-head"><span class="step-mark"></span><h2>Order jars and cups</h2></div>
+          <div class="order-stats">
+            <div class="order-stat"><span class="art sm" data-art="jar"></span><span><strong id="orderJars">–</strong><span class="small">jars (20 L)</span></span></div>
+            <div class="order-stat"><span class="art sm" data-art="cup"></span><span><strong id="orderCups">–</strong><span class="small">cups</span></span></div>
+          </div>
+          <p class="sr-only" id="orderLine"></p>
+          <details class="how"><summary>How we worked this out</summary><p class="small" id="orderBasis"></p></details>
+          <div class="action-row">
+            <button type="button" class="primary-btn" id="shareOrder" data-edit>Share with supplier</button>
+            <button type="button" class="ghost" id="markOrdered" data-edit>Mark as ordered</button>
+          </div>
         </div>
       </article>
 
       <article class="step" id="step3">
-        <div class="step-head"><span class="step-mark"></span><h2>Give volunteers and runners their links</h2></div>
-        <p class="small">Each person scans their QR code once. No app, no login.</p>
-        <div class="action-row">
-          <a class="primary-btn" id="qrLink" href="#" target="_blank" rel="noopener">Print QR sheet</a>
-          <button type="button" class="ghost" id="shareLinks">Share links on WhatsApp</button>
+        <span class="art" data-art="phone"></span>
+        <div class="step-body">
+          <div class="step-head"><span class="step-mark"></span><h2>Send everyone their link</h2></div>
+          <p class="step-main">Volunteers and runners scan a QR code once. No app, no login.</p>
+          <div class="action-row">
+            <a class="primary-btn" id="qrLink" href="#" target="_blank" rel="noopener">Print QR sheet</a>
+            <button type="button" class="ghost" id="shareLinks">Share links on WhatsApp</button>
+          </div>
         </div>
       </article>
 
       <article class="step" id="step4">
-        <div class="step-head"><span class="step-mark"></span><h2>Stock check before the gates open</h2></div>
-        <p id="stockLine"></p>
-        <p class="small" id="stockMissing"></p>
-        <div class="action-row"><button type="button" class="ghost" id="reminder">Add reminder to calendar</button></div>
+        <span class="art" data-art="clipboard"></span>
+        <div class="step-body">
+          <div class="step-head"><span class="step-mark"></span><h2>Stock check before the gates open</h2></div>
+          <p class="step-main" id="stockLine"></p>
+          <div class="mini-bar" aria-hidden="true"><span id="stockBar"></span></div>
+          <p class="small" id="stockMissing"></p>
+          <div class="action-row"><button type="button" class="ghost" id="reminder">Add reminder to calendar</button></div>
+        </div>
       </article>
 
       <section class="card keep-link" id="keepLink" hidden>
         <h2>Keep your organiser link safe</h2>
-        <p class="small">It is the only way to edit this event. Anyone with it can edit, so share it only with co-organisers.</p>
+        <p class="small">It is the only way to edit this event. Share it only with co-organisers.</p>
         <div class="action-row">
           <button type="button" class="ghost" id="copyLink">Copy link</button>
           <button type="button" class="ghost" id="sendLink">Send to myself</button>

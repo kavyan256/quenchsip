@@ -15,7 +15,8 @@
     <div class="station-name" id="runnerName">Loading…</div>
     <p id="loadError" class="error" hidden></p>
 
-    <section id="idle" class="card" hidden>
+    <section id="idle" class="card idle" hidden>
+      <span class="art xl" data-art="dropRest"></span>
       <h2 data-i18n="noJob">No job right now</h2>
       <p data-i18n="noJobHint">Stay near the store. When a station needs jars, the job appears here. This page checks every few seconds.</p>
       <p class="small" id="lastJob"></p>
@@ -24,8 +25,8 @@
 
     <section id="job" class="card job-card" hidden>
       <p class="tile-status" id="jobState"></p>
-      <div class="job-title" id="jobTitle"></div>
-      <p class="tile-detail" id="jobWhere"></p>
+      <div class="job-row"><span class="art lg" data-art="runner"></span><div class="job-title" id="jobTitle"></div></div>
+      <div class="job-row"><span class="art sm" data-art="pin"></span><p class="tile-detail" id="jobWhere"></p></div>
       <p class="small" id="jobWhy"></p>
       <button type="button" class="tap tap-swap" id="onMyWay">
         <span class="tap-title" data-i18n="onMyWay">On my way</span>

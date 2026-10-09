@@ -2,6 +2,7 @@
 import { escape } from './api.js';
 import { boardView, ago, STATUS } from './core/board.js';
 import { jobLine } from './core/dispatch.js';
+import { svg } from './art.js';
 
 const time = (ms) => new Date(ms).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
 // A shape per status, so meaning never depends on colour alone.
@@ -69,14 +70,14 @@ export function boardMarkup(data, now = Date.now(), { wide = true } = {}) {
   const fine = view.tiles.filter((t) => t.status === 'ok');
 
   const pre = uncounted.length
-    ? `<section class="card pre-start"><h2 class="group-title">Before the gates open: ${view.tiles.length - uncounted.length} of ${view.tiles.length} stations counted</h2>
-        <p class="small">Waiting for: ${uncounted.map((t) => escape(t.station.name)).join(', ')}</p></section>`
+    ? `<section class="card pre-start"><span class="art lg">${svg('clipboard')}</span><div><h2 class="group-title">Before the gates open: ${view.tiles.length - uncounted.length} of ${view.tiles.length} stations counted</h2>
+        <p class="small">Waiting for: ${uncounted.map((t) => escape(t.station.name)).join(', ')}</p></div></section>`
     : '';
   const needsHtml = needs.length
     ? `<h2 class="group-title">Needs you now (${needs.length})</h2><div class="tiles">${needs.map((t) => tile(t, data, now)).join('')}</div>`
     : uncounted.length
       ? ''
-      : '<p class="all-calm">✓ Nothing needs you right now.</p>';
+      : `<section class="calm"><span class="art xl">${svg('dropCheer')}</span><p class="all-calm">Nothing needs you right now.</p><p class="small">Stations that need help will appear here first.</p></section>`;
   const fineHtml = fine.length
     ? `<details class="all-good" ${wide || !needs.length ? 'open' : ''}><summary>All good (${fine.length}) <span class="small">${fine.map((t) => escape(t.station.name)).join(' · ')}</span></summary><div class="tiles">${fine.map((t) => tile(t, data, now)).join('')}</div></details>`
     : '';

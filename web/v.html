@@ -17,6 +17,7 @@
     <p id="loadError" class="error" hidden></p>
 
     <section class="intro card" id="intro" hidden aria-labelledby="introTitle">
+      <span class="art xl" data-art="drop"></span>
       <h2 id="introTitle"></h2>
       <ol>
         <li data-i18n="intro1">Count your jars and cups now.</li>
@@ -28,7 +29,7 @@
 
     <div id="buttons" hidden>
       <form class="card stock-card" id="stockCard" hidden>
-        <h2 data-i18n="beforeGates">Before the gates open</h2>
+        <div class="card-head"><span class="art" data-art="clipboard"></span><h2 data-i18n="beforeGates">Before the gates open</h2></div>
         <p class="small" id="stockHint">Count the full jars at your station, including the one on the tap, and the cups.</p>
         <div class="stock-row">
           <label><span data-i18n="fullJars">Full jars</span> <input id="stockJars" name="jars" type="number" inputmode="numeric" min="0" max="200" required placeholder="e.g. 6"></label>
@@ -38,15 +39,18 @@
       </form>
 
       <button type="button" class="tap tap-swap" data-type="swap">
-        <span class="tap-title" data-i18n="jarSwapped">Jar swapped</span>
-        <span class="tap-hint" data-i18n="jarSwappedHint">Tap each time you put a new jar on</span>
+        <span class="tap-badge"><span class="art" data-art="swap"></span></span>
+        <span class="tap-text"><span class="tap-title" data-i18n="jarSwapped">Jar swapped</span>
+        <span class="tap-hint" data-i18n="jarSwappedHint">Tap each time you put a new jar on</span></span>
       </button>
       <button type="button" class="tap tap-last" data-type="last_jar">
-        <span class="tap-title" data-i18n="lastJar">Last jar</span>
-        <span class="tap-hint" data-i18n="lastJarHint">Tap when the jar on the tap is your last full one</span>
+        <span class="tap-badge"><span class="art" data-art="lastJar"></span></span>
+        <span class="tap-text"><span class="tap-title" data-i18n="lastJar">Last jar</span>
+        <span class="tap-hint" data-i18n="lastJarHint">Tap when the jar on the tap is your last full one</span></span>
       </button>
       <button type="button" class="tap tap-cups" data-type="cups_low">
-        <span class="tap-title" data-i18n="cupsLow">Cups low</span>
+        <span class="tap-badge small-badge"><span class="art" data-art="cup"></span></span>
+        <span class="tap-text"><span class="tap-title" data-i18n="cupsLow">Cups low</span></span>
       </button>
 
       <div id="feedback" class="feedback" role="status" aria-live="polite"></div>

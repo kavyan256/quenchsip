@@ -2,9 +2,10 @@
 import { api, escape } from './api.js';
 import { stationsCsv } from './core/summary.js';
 import { shareText } from './share.js';
+import { svg } from './art.js';
 
 const n = (x) => Number(x).toLocaleString('en-IN');
-const stat = (big, label) => `<div class="stat"><div class="big">${big}</div><div class="small">${escape(label)}</div></div>`;
+const stat = (big, label, art) => `<div class="stat">${art ? `<span class="art">${svg(art)}</span>` : ''}<div><div class="big">${big}</div><div class="small">${escape(label)}</div></div></div>`;
 
 export async function mountSummary(container, eventId) {
   const s = await api('GET', `/events/${eventId}/summary`);
@@ -14,27 +15,27 @@ export async function mountSummary(container, eventId) {
       <section class="card">
         <h2>Water from refill stations</h2>
         <div class="totals" id="water">
-          ${stat(`${n(s.water.litres)} L`, 'water dispensed')}
-          ${stat(`up to ${n(s.water.bottlesUpTo)}`, 'plastic bottles (500 ml) not bought')}
-          ${stat(`${s.water.petKg.low}–${s.water.petKg.high} kg`, 'PET plastic avoided, at most')}
+          ${stat(`${n(s.water.litres)} L`, 'water dispensed', 'jar')}
+          ${stat(`up to ${n(s.water.bottlesUpTo)}`, 'plastic bottles (500 ml) not bought', 'bottleNo')}
+          ${stat(`${s.water.petKg.low}–${s.water.petKg.high} kg`, 'PET plastic avoided, at most', 'dropCheer')}
         </div>
         <p class="note" id="formula">${escape(s.water.formula)}</p>
       </section>
       <section class="card">
         <h2>Did stations run dry?</h2>
         <div class="totals" id="dry">
-          ${stat(`${s.totals.stockedBeforeStart} of ${s.totals.stations}`, 'stations stocked before the start')}
-          ${stat(`${s.totals.stationsThatRanDry}`, 'stations that ran dry')}
-          ${stat(`${n(s.totals.dryMinutes)} min`, 'dry minutes in total')}
+          ${stat(`${s.totals.stockedBeforeStart} of ${s.totals.stations}`, 'stations stocked before the start', 'clipboard')}
+          ${stat(`${s.totals.stationsThatRanDry}`, 'stations that ran dry', 'station')}
+          ${stat(`${n(s.totals.dryMinutes)} min`, 'dry minutes in total', 'stopwatch')}
         </div>
         <p class="note">Dry minutes are counted by the check every 2 minutes, while a station is past its expected run-dry time with no new jars.</p>
       </section>
       <section class="card">
         <h2>Runners</h2>
         <div class="totals" id="dispatch">
-          ${stat(`${d.delivered} of ${d.jobs}`, 'runner jobs delivered')}
-          ${stat(`${n(d.jarsDelivered)}`, 'jars delivered by runners')}
-          ${stat(d.medianMinutesToDeliver === null ? '–' : `${d.medianMinutesToDeliver} min`, 'typical time from alert to delivery (median)')}
+          ${stat(`${d.delivered} of ${d.jobs}`, 'runner jobs delivered', 'runner')}
+          ${stat(`${n(d.jarsDelivered)}`, 'jars delivered by runners', 'truck')}
+          ${stat(d.medianMinutesToDeliver === null ? '–' : `${d.medianMinutesToDeliver} min`, 'typical time from alert to delivery (median)', 'stopwatch')}
         </div>
       </section>
       <section class="card">

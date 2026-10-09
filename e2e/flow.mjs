@@ -90,15 +90,29 @@ async function apiCall(method, url, body) {
 try {
   await sleep(1500);
 
-  // Set up: only the name is typed; everything else is a default or a tap.
+  // Set up: one question per screen; only the name is typed, everything else is a tap with a default.
   const page = await open(`${WEB}/plan.html`);
-  await page.ev(`document.getElementById('create').click()`);
+  const visibleStep = `document.querySelector('.flow-step:not([hidden])').dataset.step`;
+  await page.ev(`document.getElementById('next').click()`);
   await sleep(300);
   assert.equal(await page.ev(`document.getElementById('nameError').hidden`), false, 'empty name is caught next to the field');
   assert.equal(await page.ev(`document.activeElement.id`), 'name');
+  assert.equal(await page.ev(visibleStep), '1', 'cannot move on without a name');
+  await page.ev(`{ const n = document.getElementById('name'); n.value = 'Spring Fest'; n.dispatchEvent(new Event('input')); }`);
+  for (const n of ['2', '3', '4', '5']) {
+    await page.ev(`document.getElementById('next').click()`);
+    assert.equal(await page.ev(visibleStep), n, `Continue moves to question ${n}`);
+  }
+  await page.ev(`history.back()`);
+  await waitFor(page, `${visibleStep} === '4'`);
+  await page.ev(`document.getElementById('next').click()`);
+  assert.equal(await page.ev(`document.getElementById('create').hidden`), false, 'the plan screen has Create event');
+  assert.equal(await page.ev(`document.querySelectorAll('#flowProgress span.on').length`), 5);
   assert.match(await page.ev(`document.getElementById('order').textContent`), /^Order about \d+–\d+ jars/);
+  assert.match(await page.ev(`document.getElementById('planJars').textContent`), /^\d+–\d+$/);
   assert.equal(await page.ev(`document.getElementById('stations').textContent`), '4', '2,000 people -> 4 stations suggested');
-  await page.ev(`{ const n = document.getElementById('name'); n.value = 'Spring Fest'; n.dispatchEvent(new Event('input')); document.getElementById('create').click(); }`);
+  assert.match(await page.ev(`document.getElementById('planLine').textContent`), /^Spring Fest · Today .* · 2,000 people$/);
+  await page.ev(`document.getElementById('create').click()`);
   await waitFor(page, `location.pathname === '/event.html'`, 15000);
   const params = new URL(await page.ev('location.href'));
   const eventId = params.searchParams.get('e');
@@ -106,7 +120,7 @@ try {
   assert.match(orgKey, /^[a-z0-9]{24}$/, 'organiser link carries the private key');
   await waitFor(page, `document.getElementById('stationsLine').textContent.startsWith('4 stations')`, 15000);
   assert.match(await page.ev(`document.getElementById('progressText').textContent`), /1 of 4 done/);
-  step('set up with one typed field opens the hub: 4 stations, checklist 1 of 4');
+  step('set up, one question per screen (back works), opens the hub: 4 stations, checklist 1 of 4');
 
   // Stations sheet: rename, busy spot, add a station; saves as you go.
   await page.ev(`document.getElementById('editStations').click()`);
@@ -117,7 +131,9 @@ try {
   await page.ev(`document.getElementById('addStation').click()`);
   await waitFor(page, `document.querySelectorAll('#stationRows li').length === 5`);
   await page.ev(`document.getElementById('closeSheet').click()`);
-  assert.match(await page.ev(`document.getElementById('stationsLine').textContent`), /^5 stations \(Main gate, Station 2, Station 3 and 2 more\) · 1 busy spot · 2 runners$/);
+  assert.equal(await page.ev(`document.getElementById('stationsLine').textContent`), '5 stations · 1 busy spot · 2 runners');
+  assert.equal(await page.ev(`document.getElementById('stationsNames').textContent`), 'Main gate, Station 2, Station 3, Station 4, Station 5');
+  assert.equal(await page.ev(`document.querySelectorAll('#tab-setup .step > .art svg').length`), 4, 'each step has its illustration');
   step('stations sheet: rename, busy spot and add save as you go, in order');
 
   await page.ev(`document.getElementById('markOrdered').click()`);

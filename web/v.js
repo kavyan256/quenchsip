@@ -3,6 +3,7 @@ import { newTapId } from './core/tap.js';
 import { outcome, retryDelay, queueSummary } from './core/sync.js';
 import { saveTap, stationTaps, pruneSent } from './queue.js';
 import { t, applyStatic, languageButton } from './i18n.js';
+import { mountArt } from './art.js';
 
 const $ = (id) => document.getElementById(id);
 const eventId = param('e');
@@ -190,6 +191,7 @@ if ('serviceWorker' in navigator && window.isSecureContext) {
   navigator.serviceWorker.register('sw.js').catch(() => {});
 }
 
+mountArt();
 applyStatic();
 languageButton($('lang'), () => {
   if (stationInfo) {

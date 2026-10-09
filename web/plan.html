@@ -9,47 +9,57 @@
   <link rel="manifest" href="manifest.webmanifest">
 </head>
 <body>
-  <main class="narrow">
-    <p class="top-nav"><a href="index.html">← Quench</a></p>
-    <h1>Set up your event's water</h1>
-
-    <div class="template-row" role="group" aria-label="Start from a template">
-      <span class="small">Start from:</span>
-      <button type="button" class="chip-btn" data-template="fest">College fest</button>
-      <button type="button" class="chip-btn" data-template="run">City run</button>
-      <button type="button" class="chip-btn" data-template="concert">Concert</button>
-    </div>
-
-    <form id="setup" novalidate>
-      <div class="field">
-        <label for="name" class="q">What is it called?</label>
-        <input id="name" name="name" autocomplete="off" maxlength="80" placeholder="e.g. Spring Fest 2026" required aria-describedby="nameError">
-        <p class="field-error" id="nameError" hidden>Give the event a name.</p>
+  <main class="flow">
+    <!-- One question per screen; the plan is the payoff at the end. -->
+    <header class="flow-top">
+      <a class="flow-back" id="back" href="index.html" aria-label="Close set up">✕</a>
+      <div class="flow-progress" id="flowProgress" role="progressbar" aria-valuemin="1" aria-valuemax="5" aria-valuenow="1" aria-label="Set up progress">
+        <span></span><span></span><span></span><span></span><span></span>
       </div>
+    </header>
 
-      <fieldset class="field">
-        <legend class="q">How many people?</legend>
-        <div class="chips" id="peopleChips">
-          <label class="chip-opt"><input type="radio" name="people" value="500"><span>500</span></label>
-          <label class="chip-opt"><input type="radio" name="people" value="1000"><span>1,000</span></label>
-          <label class="chip-opt"><input type="radio" name="people" value="2000" checked><span>2,000</span></label>
-          <label class="chip-opt"><input type="radio" name="people" value="5000"><span>5,000</span></label>
-          <label class="chip-opt"><input type="radio" name="people" value="10000"><span>10,000</span></label>
+    <form id="setup" class="flow-form" novalidate>
+      <!-- 1 · Name -->
+      <section class="flow-step" data-step="1" aria-labelledby="q1">
+        <div class="ask"><span class="art lg" data-art="drop"></span><h1 class="bubble" id="q1">What's your event called?</h1></div>
+        <label for="name" class="sr-only">Event name</label>
+        <input id="name" name="name" class="big-input" autocomplete="off" maxlength="80" placeholder="e.g. Spring Fest 2026" required aria-describedby="nameError">
+        <p class="field-error" id="nameError" hidden>Give the event a name.</p>
+        <p class="small">Or start from</p>
+        <div class="template-row" role="group" aria-label="Start from a template">
+          <button type="button" class="chip-btn" data-template="fest">College fest</button>
+          <button type="button" class="chip-btn" data-template="run">City run</button>
+          <button type="button" class="chip-btn" data-template="concert">Concert</button>
         </div>
-        <label class="inline-label">or exactly <input id="people" type="number" inputmode="numeric" min="1" max="500000" step="1" value="2000"></label>
+      </section>
+
+      <!-- 2 · People -->
+      <fieldset class="flow-step" data-step="2" hidden>
+        <legend class="ask"><span class="art lg" data-art="drop"></span><span class="bubble">How many people are coming?</span></legend>
+        <div class="options">
+          <label class="option"><input type="radio" name="people" value="500"><span class="art" data-art="people"></span><strong>500</strong><span class="small">a small event</span></label>
+          <label class="option"><input type="radio" name="people" value="2000" checked><span class="art" data-art="people"></span><strong>2,000</strong><span class="small">a college fest</span></label>
+          <label class="option"><input type="radio" name="people" value="5000"><span class="art" data-art="people"></span><strong>5,000</strong><span class="small">a big fest or city run</span></label>
+          <label class="option"><input type="radio" name="people" value="10000"><span class="art" data-art="people"></span><strong>10,000+</strong><span class="small">a concert or marathon</span></label>
+        </div>
+        <button type="button" class="link-btn" id="exactBtn">Type an exact number</button>
+        <label class="exact" id="exactRow" hidden>Exactly <input id="people" type="number" inputmode="numeric" min="1" max="500000" step="1" value="2000"> people</label>
       </fieldset>
 
-      <fieldset class="field">
-        <legend class="q">When?</legend>
-        <div class="chips">
-          <label class="chip-opt"><input type="radio" name="day" value="today" checked><span>Today</span></label>
-          <label class="chip-opt"><input type="radio" name="day" value="tomorrow"><span>Tomorrow</span></label>
-          <label class="chip-opt"><input type="radio" name="day" value="pick"><span>Pick a date</span></label>
-          <input id="date" type="date" hidden aria-label="Event date">
+      <!-- 3 · When -->
+      <fieldset class="flow-step" data-step="3" hidden>
+        <legend class="ask"><span class="art lg" data-art="drop"></span><span class="bubble">When is it?</span></legend>
+        <div class="options">
+          <label class="option"><input type="radio" name="day" value="today" checked><span class="art" data-art="calendar"></span><strong>Today</strong><span class="small" id="todayLabel"></span></label>
+          <label class="option"><input type="radio" name="day" value="tomorrow"><span class="art" data-art="calendar"></span><strong>Tomorrow</strong><span class="small" id="tomorrowLabel"></span></label>
         </div>
-        <div class="chips">
-          <label class="inline-label">Starts <input id="start" type="time" step="900"></label>
-          <span class="small">for</span>
+        <label class="option-hidden"><input type="radio" name="day" value="pick" id="dayPick"></label>
+        <button type="button" class="link-btn" id="pickBtn">Pick another date</button>
+        <input id="date" type="date" hidden aria-label="Event date" class="big-input">
+        <label class="field-label" for="start">Starts at</label>
+        <input id="start" type="time" step="900" class="big-input">
+        <p class="field-label" id="hoursLabel">How long?</p>
+        <div class="chips" role="radiogroup" aria-labelledby="hoursLabel">
           <label class="chip-opt"><input type="radio" name="hours" value="2"><span>2 h</span></label>
           <label class="chip-opt"><input type="radio" name="hours" value="3" checked><span>3 h</span></label>
           <label class="chip-opt"><input type="radio" name="hours" value="4"><span>4 h</span></label>
@@ -57,35 +67,57 @@
         </div>
       </fieldset>
 
-      <label class="switch-row">
-        <span><span class="q">Hot day?</span> <span class="small">People drink about 30% more.</span></span>
-        <input id="hot" type="checkbox" role="switch">
-      </label>
+      <!-- 4 · Weather -->
+      <fieldset class="flow-step" data-step="4" hidden>
+        <legend class="ask"><span class="art lg" data-art="drop"></span><span class="bubble">Will it be a hot day?</span></legend>
+        <div class="options">
+          <label class="option"><input type="radio" name="hot" value="yes"><span class="art" data-art="sun"></span><strong>Yes, hot</strong><span class="small">people drink about 30% more</span></label>
+          <label class="option"><input type="radio" name="hot" value="no" checked><span class="art" data-art="drop"></span><strong>Normal</strong><span class="small">a pleasant day</span></label>
+        </div>
+      </fieldset>
 
-      <section class="suggest" aria-live="polite">
-        <p class="eyebrow">We suggest</p>
-        <div class="stepper-row">
-          <span>Water stations</span>
-          <div class="stepper">
-            <button type="button" id="stationsMinus" aria-label="Fewer stations">−</button>
-            <output id="stations" aria-label="Water stations">4</output>
-            <button type="button" id="stationsPlus" aria-label="More stations">+</button>
-          </div>
+      <!-- 5 · The plan -->
+      <section class="flow-step" data-step="5" aria-labelledby="q5" hidden>
+        <div class="plan-hero">
+          <span class="art xl" data-art="dropCheer"></span>
+          <h1 id="q5">Here's your water plan</h1>
+          <p class="small" id="planLine"></p>
         </div>
-        <div class="stepper-row">
-          <span>Runners</span>
-          <div class="stepper">
-            <button type="button" id="runnersMinus" aria-label="Fewer runners">−</button>
-            <output id="runners" aria-label="Runners">2</output>
-            <button type="button" id="runnersPlus" aria-label="More runners">+</button>
+        <section class="order-card" aria-live="polite">
+          <p class="eyebrow">Order</p>
+          <div class="order-item"><span class="icon-tile"><span class="art" data-art="jar"></span></span><span><strong id="planJars">–</strong><span class="small">jars of 20 L</span></span></div>
+          <div class="order-item"><span class="icon-tile"><span class="art" data-art="cup"></span></span><span><strong id="planCups">–</strong><span class="small">plastic-free cups</span></span></div>
+          <p class="sr-only" id="order"></p>
+        </section>
+        <section class="team-card">
+          <div class="stepper-row">
+            <span>Water stations</span>
+            <div class="stepper">
+              <button type="button" id="stationsMinus" aria-label="Fewer stations">−</button>
+              <output id="stations" aria-label="Water stations">4</output>
+              <button type="button" id="stationsPlus" aria-label="More stations">+</button>
+            </div>
           </div>
-        </div>
-        <p class="order" id="order">Order about 30–60 jars and 1,500–3,000 cups</p>
-        <p class="small" id="basis">1 station per 500 people · 0.25–0.5 L per person per hour · 20 L jars, 200 ml cups</p>
+          <div class="stepper-row">
+            <span>Runners</span>
+            <div class="stepper">
+              <button type="button" id="runnersMinus" aria-label="Fewer runners">−</button>
+              <output id="runners" aria-label="Runners">2</output>
+              <button type="button" id="runnersPlus" aria-label="More runners">+</button>
+            </div>
+          </div>
+        </section>
+        <details class="how">
+          <summary>How we worked this out</summary>
+          <p class="small" id="basis"></p>
+        </details>
       </section>
 
-      <button type="submit" class="primary-btn big" id="create">Create event</button>
-      <p class="small center" id="createStatus" role="status" aria-live="polite">Station names, busy spots and runner names can be changed after.</p>
+      <footer class="flow-foot">
+        <p class="small center" id="createStatus" role="status" aria-live="polite"></p>
+        <button type="button" class="primary-btn big" id="next">Continue</button>
+        <button type="submit" class="primary-btn big" id="create" hidden>Create event</button>
+      </footer>
     </form>
   </main>
   <script type="module" src="plan.js"></script>

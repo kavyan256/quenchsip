@@ -4,6 +4,7 @@ import { organiserKey, organiserLink, rememberEvent } from './store.js';
 import { boardMarkup } from './liveboard.js';
 import { mountSummary } from './summary-view.js';
 import { shareText, copyText, downloadReminder } from './share.js';
+import { mountArt, svg } from './art.js';
 
 const $ = (id) => document.getElementById(id);
 const eventId = param('e');
@@ -71,15 +72,25 @@ function renderSetup() {
     el.querySelector('.step-mark').textContent = done ? '✓' : String(i + 1);
     el.querySelector('.step-mark').setAttribute('aria-label', done ? 'Done' : `Step ${i + 1}`);
   });
-  $('progressText').textContent = doneCount === 4 ? 'Ready for the event' : `Ready in 4 steps · ${doneCount} of 4 done`;
-  $('progressDots').textContent = steps.map((d) => (d ? '●' : '○')).join(' ');
+  $('progressText').textContent = doneCount === 4 ? 'Ready for the event!' : `Ready in 4 steps · ${doneCount} of 4 done`;
+  $('progressBar').setAttribute('aria-label', `${doneCount} of 4 steps done`);
+  [...$('progressBar').children].forEach((seg, i) => seg.classList.toggle('on', i < doneCount));
+  const art = doneCount === 4 ? 'dropCheer' : 'clipboard';
+  if ($('progressArt').dataset.art !== art) {
+    $('progressArt').dataset.art = art;
+    $('progressArt').innerHTML = svg(art);
+  }
 
-  $('stationsLine').textContent = `${stations.length} stations (${shortList(stations.map((s) => s.name), 3)})${busy ? ` · ${busy} busy spot${busy === 1 ? '' : 's'}` : ''} · ${runners.length} runner${runners.length === 1 ? '' : 's'}`;
+  $('stationsLine').textContent = `${stations.length} stations${busy ? ` · ${busy} busy spot${busy === 1 ? '' : 's'}` : ''} · ${runners.length} runner${runners.length === 1 ? '' : 's'}`;
+  $('stationsNames').textContent = shortList(stations.map((s) => s.name), 5);
   const t = orderTotals(plan.total);
+  $('orderJars').textContent = `${nf(t.jarsLow)}–${nf(t.jarsHigh)}`;
+  $('orderCups').textContent = `${nf(t.cupsLow)}–${nf(t.cupsHigh)}`;
   $('orderLine').textContent = `Order about ${nf(t.jarsLow)}–${nf(t.jarsHigh)} jars (20 L) and ${nf(t.cupsLow)}–${nf(t.cupsHigh)} cups`;
   $('orderBasis').textContent = `For ${nf(event.attendees)} people over ${event.hourCount} h at ${event.litresPerPersonHr.low}–${event.litresPerPersonHr.high} L per person per hour${event.heatFactor > 1 ? ', hot day' : ''}.`;
   $('markOrdered').textContent = event.setup?.ordered ? 'Ordered ✓ (undo)' : 'Mark as ordered';
   $('stockLine').textContent = `${counted} of ${stations.length} stations counted`;
+  $('stockBar').style.width = `${stations.length ? Math.round((counted / stations.length) * 100) : 0}%`;
   const missing = stations.filter((s) => !s.stocked).map((s) => s.name);
   $('stockMissing').textContent = missing.length ? `Waiting for: ${shortList(missing)}` : 'All stations have counted their jars and cups.';
   $('reminder').hidden = !event.startsAt;
@@ -273,6 +284,7 @@ if (!eventId) {
   $('loadError').textContent = 'Start from the home page or your organiser link.';
   $('loadError').hidden = false;
 } else {
+  mountArt();
   $('viewOnly').hidden = canEdit;
   $('keepLink').hidden = !canEdit;
   showTab(tab);
