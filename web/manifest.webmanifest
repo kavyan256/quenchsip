@@ -1,0 +1,10 @@
+{
+  "name": "Quench",
+  "short_name": "Quench",
+  "description": "Water control room for plastic-free events",
+  "start_url": "/index.html",
+  "display": "standalone",
+  "background_color": "#F4F8F7",
+  "theme_color": "#0F766E",
+  "icons": [{ "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }]
+}

@@ -1,7 +1,7 @@
 // Single Lambda behind API Gateway (HTTP API, payload v2). Also used by the local dev server.
 import { ValidationError } from '../core/event.js';
 import { TapError } from '../core/tap.js';
-import { HttpError, createEvent, getEvent, addStation, removeStation, addRunner, removeRunner } from '../lib/events.js';
+import { HttpError, createEvent, getEvent, addStation, removeStation, addRunner, removeRunner, updateEvent, updateStation } from '../lib/events.js';
 import { acceptTap } from '../lib/tapQueue.js';
 import { ack, done, runnerView } from '../lib/dispatch.js';
 import { eventSummary } from '../lib/summary.js';
@@ -13,10 +13,13 @@ const routes = [
   ['POST', /^\/events$/, async ({ body }) => createEvent(body), 201],
   ['GET', new RegExp(`^/events/${ID}$`), async ({ params }) => getEvent(params[0]), 200],
   ['GET', new RegExp(`^/events/${ID}/summary$`), async ({ params }) => eventSummary(params[0]), 200],
-  ['POST', new RegExp(`^/events/${ID}/stations$`), async ({ params, pin, body }) => addStation(params[0], pin, body), 201],
-  ['DELETE', new RegExp(`^/events/${ID}/stations/${ID}$`), async ({ params, pin }) => removeStation(params[0], pin, params[1]), 200],
-  ['POST', new RegExp(`^/events/${ID}/runners$`), async ({ params, pin, body }) => addRunner(params[0], pin, body), 201],
-  ['DELETE', new RegExp(`^/events/${ID}/runners/${ID}$`), async ({ params, pin }) => removeRunner(params[0], pin, params[1]), 200],
+  // Organiser actions: the organiser key from their private link (x-organiser-key), or a PIN for older events.
+  ['PATCH', new RegExp(`^/events/${ID}$`), async ({ params, auth, body }) => updateEvent(params[0], auth, body), 200],
+  ['POST', new RegExp(`^/events/${ID}/stations$`), async ({ params, auth, body }) => addStation(params[0], auth, body), 201],
+  ['PATCH', new RegExp(`^/events/${ID}/stations/${ID}$`), async ({ params, auth, body }) => updateStation(params[0], auth, params[1], body), 200],
+  ['DELETE', new RegExp(`^/events/${ID}/stations/${ID}$`), async ({ params, auth }) => removeStation(params[0], auth, params[1]), 200],
+  ['POST', new RegExp(`^/events/${ID}/runners$`), async ({ params, auth, body }) => addRunner(params[0], auth, body), 201],
+  ['DELETE', new RegExp(`^/events/${ID}/runners/${ID}$`), async ({ params, auth }) => removeRunner(params[0], auth, params[1]), 200],
   // Volunteers tap without a PIN; the station QR link is their access.
   ['POST', new RegExp(`^/events/${ID}/stations/${ID}/taps$`), async ({ params, body }) => acceptTap(params[0], params[1], body), 201],
   // Runners: their QR/link is their access, like volunteers.
@@ -48,7 +51,7 @@ export async function handler(event) {
     const match = m === method && path.match(re);
     if (!match) continue;
     try {
-      const data = await fn({ params: match.slice(1), body, pin: headers['x-organiser-pin'] });
+      const data = await fn({ params: match.slice(1), body, auth: { pin: headers['x-organiser-pin'], key: headers['x-organiser-key'] } });
       // Some actions choose their own status: { status, body } (e.g. 202 for a queued tap).
       if (data && 'body' in data && 'status' in data) return json(data.status ?? (data.body?.duplicate ? 200 : status), data.body);
       // A retried tap that was already stored is fine: 200, not 201.

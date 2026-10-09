@@ -16,6 +16,40 @@ function feedback(kind, text) {
   $('feedback').textContent = text;
 }
 
+// New job: buzz, two short beeps (browsers allow sound after the first tap on the page),
+// and a flashing tab title so it shows even when the runner is in another app tab.
+let audio = null;
+addEventListener('pointerdown', () => {
+  try { audio ??= new AudioContext(); audio.resume(); } catch {}
+}, { once: true });
+let flash = null;
+function alertNewJob(job) {
+  if (navigator.vibrate) navigator.vibrate([300, 150, 300, 150, 300]);
+  if (audio) {
+    for (const at of [0, 0.25]) {
+      const o = audio.createOscillator();
+      const g = audio.createGain();
+      o.frequency.value = 880;
+      g.gain.setValueAtTime(0.25, audio.currentTime + at);
+      g.gain.exponentialRampToValueAtTime(0.001, audio.currentTime + at + 0.2);
+      o.connect(g).connect(audio.destination);
+      o.start(audio.currentTime + at);
+      o.stop(audio.currentTime + at + 0.2);
+    }
+  }
+  clearInterval(flash);
+  const base = document.title;
+  const alertTitle = t('newJobTitle', { station: job.stationName });
+  let on = false;
+  flash = setInterval(() => {
+    document.title = (on = !on) ? alertTitle : base;
+  }, 1000);
+  setTimeout(() => {
+    clearInterval(flash);
+    document.title = base;
+  }, 20000);
+}
+
 function render(data) {
   lastData = data;
   const { event, runner, job, lastJob } = data;
@@ -40,7 +74,7 @@ function render(data) {
   if (isNew) {
     $('deliveredJars').value = job.jars;
     $('deliveredCups').value = job.cups;
-    if (navigator.vibrate) navigator.vibrate([200, 100, 200]);
+    alertNewJob(job);
   }
 }
 

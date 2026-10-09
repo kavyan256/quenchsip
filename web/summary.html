@@ -3,6 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0F766E">
   <title>Summary · Quench</title>
   <link rel="stylesheet" href="style.css">
 </head>
@@ -10,37 +11,8 @@
   <main>
     <p class="no-print"><a id="back" href="#">← Event</a></p>
     <h1 id="title">Event summary</h1>
-    <p class="lead" id="subtitle"></p>
     <p id="loadError" class="error" hidden></p>
-
-    <div id="content" hidden>
-      <section class="card">
-        <h2>Water from refill stations</h2>
-        <div class="totals" id="water"></div>
-        <p class="note" id="formula"></p>
-      </section>
-
-      <section class="card">
-        <h2>Did stations run dry?</h2>
-        <div class="totals" id="dry"></div>
-        <p class="note">Dry minutes are counted by the scheduled check every 2 minutes, while a station is past its expected run-dry time with no new jars.</p>
-      </section>
-
-      <section class="card">
-        <h2>Runners</h2>
-        <div class="totals" id="dispatch"></div>
-      </section>
-
-      <section class="card">
-        <h2>By station</h2>
-        <div class="table-wrap"><table id="stations"></table></div>
-        <p class="no-print">
-          <button type="button" class="ghost" id="csv">Download CSV</button>
-          <button type="button" class="ghost" id="print">Print</button>
-          <a id="template" href="#">Use as next year's plan →</a>
-        </p>
-      </section>
-    </div>
+    <div id="mount"></div>
   </main>
   <script type="module" src="summary.js"></script>
 </body>

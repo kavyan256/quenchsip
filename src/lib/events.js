@@ -1,14 +1,14 @@
 // Event storage: one DynamoDB partition per event.
-//   PK EVT#<id>  SK META        event settings + organiser PIN hash
+//   PK EVT#<id>  SK META        event settings + hash of the organiser key (and of the PIN, for older events)
 //   PK EVT#<id>  SK STN#<sid>   station
 //   PK EVT#<id>  SK RUN#<rid>   runner
 //   PK EVT#<id>  SK JOB#<jobId> runner job (see dispatch.js)
 //   PK EVT#<id>  SK TAP#<uuid>  volunteer tap (see taps.js); sorts after the others
 //   PK EVENTS    SK <startsAt>#<id>  index of events by start time (for the scheduled projector)
-import { GetCommand, QueryCommand, TransactWriteCommand, PutCommand, DeleteCommand } from '@aws-sdk/lib-dynamodb';
+import { GetCommand, QueryCommand, TransactWriteCommand, PutCommand, DeleteCommand, UpdateCommand } from '@aws-sdk/lib-dynamodb';
 import { db, TABLE } from './db.js';
 import { hashPin, verifyPin, newId } from './pin.js';
-import { validateEvent, validatePin, validateStation, validateRunner, hourLabels, LIMITS } from '../core/event.js';
+import { validateEvent, validatePin, validateStation, validateRunner, validateStationPatch, validateEventPatch, crowdShare, hourLabels, LIMITS } from '../core/event.js';
 import { planEvent, readiness } from '../core/plan.js';
 
 export class HttpError extends Error {
@@ -20,21 +20,24 @@ export class HttpError extends Error {
 
 const pk = (id) => `EVT#${id}`;
 
+// Returns { id, key }. The key goes in the organiser's private link; only its hash is stored.
+// A PIN is still accepted (older clients and tests) but no longer needed.
 export async function createEvent(input) {
   const ev = validateEvent(input);
-  const pin = validatePin(input?.pin);
+  const pin = input?.pin === undefined ? undefined : validatePin(input.pin);
+  const key = newId(24);
   const id = newId();
   const now = new Date().toISOString();
   const { stations, runners, ...settings } = ev;
 
   const items = [
-    { PK: pk(id), SK: 'META', type: 'event', id, ...settings, pinHash: hashPin(pin), createdAt: now },
+    { PK: pk(id), SK: 'META', type: 'event', id, ...settings, keyHash: hashPin(key), ...(pin ? { pinHash: hashPin(pin) } : {}), setup: { ordered: false, linksShared: false }, createdAt: now },
     // Index of events by start time, so the scheduled projector finds live events without a table scan.
     ...(settings.startsAt
       ? [{ PK: 'EVENTS', SK: `${settings.startsAt}#${id}`, type: 'event-index', id, endsAt: new Date(Date.parse(settings.startsAt) + settings.hourCount * 3600000).toISOString() }]
       : []),
-    ...stations.map((s) => ({ PK: pk(id), SK: `STN#${newId(6)}`, type: 'station', ...s, jarsOnHand: 0, cupsOnHand: 0, stocked: false, createdAt: now })),
-    ...runners.map((r) => ({ PK: pk(id), SK: `RUN#${newId(6)}`, type: 'runner', ...r, status: 'free', createdAt: now })),
+    ...stations.map((s, i) => ({ PK: pk(id), SK: `STN#${newId(6)}`, type: 'station', ...s, order: i, jarsOnHand: 0, cupsOnHand: 0, stocked: false, createdAt: now })),
+    ...runners.map((r, i) => ({ PK: pk(id), SK: `RUN#${newId(6)}`, type: 'runner', ...r, order: i, status: 'free', createdAt: now })),
   ];
   await db.send(
     new TransactWriteCommand({
@@ -43,10 +46,10 @@ export async function createEvent(input) {
       })),
     })
   );
-  return { id };
+  return { id, key };
 }
 
-// Public view: no PIN hash. The plan is worked out on read, so it always matches the current stations.
+// Public view: no PIN or key hash. The plan is worked out on read, so it always matches the current stations.
 export async function getEvent(id) {
   // SK < "TAP#" reads META, RUN# and STN# items but skips the (many) taps.
   const res = await db.send(
@@ -54,16 +57,22 @@ export async function getEvent(id) {
   );
   const meta = res.Items.find((x) => x.SK === 'META');
   if (!meta) throw new HttpError(404, 'Event not found.');
-  const { PK, SK, pinHash, type, ...event } = meta;
-  const stations = res.Items.filter((x) => x.type === 'station').map(({ PK, SK, type, ...s }) => ({ id: SK.slice(4), ...s }));
-  const runners = res.Items.filter((x) => x.type === 'runner').map(({ PK, SK, type, ...r }) => ({ id: SK.slice(4), ...r }));
+  const { PK, SK, pinHash, keyHash, type, ...event } = meta;
+  // In the order they were added (items are stored by random id).
+  const byOrder = (a, b) => (a.order ?? Infinity) - (b.order ?? Infinity) || (a.createdAt || '').localeCompare(b.createdAt || '') || a.name.localeCompare(b.name, undefined, { numeric: true });
+  const stations = res.Items.filter((x) => x.type === 'station').map(({ PK, SK, type, ...s }) => ({ id: SK.slice(4), ...s })).sort(byOrder);
+  const runners = res.Items.filter((x) => x.type === 'runner').map(({ PK, SK, type, ...r }) => ({ id: SK.slice(4), ...r })).sort(byOrder);
   // Task tokens resume the dispatch state machine, so they never leave the server.
   const jobs = res.Items.filter((x) => x.type === 'job').map(({ PK, SK, type, ackToken, doneToken, executionArn, ...j }) => ({ id: SK.slice(4), ...j }));
 
   const hours = hourLabels(event.startHour, event.hourCount);
-  const plan = planEvent({ attendees: event.attendees, hours, stations, share: event.share, litresPerPersonHr: event.litresPerPersonHr, heatFactor: event.heatFactor });
+  // Without a crowd grid (new events), each station is its own "zone" with an equal share; busy spots double.
+  const byWeight = !event.share;
+  const planStations = byWeight ? stations.map((s) => ({ ...s, zone: s.id })) : stations;
+  const share = byWeight ? crowdShare(stations, event.hourCount) : event.share;
+  const plan = planEvent({ attendees: event.attendees, hours, stations: planStations, share, litresPerPersonHr: event.litresPerPersonHr, heatFactor: event.heatFactor });
   const ready = readiness({ attendees: event.attendees, stationCount: stations.length, volunteerCount: event.volunteerCount, jarSupplier: event.jarSupplier, signal: event.signal });
-  const zonesWithoutShare = [...new Set(stations.map((s) => s.zone))].filter((z) => !event.share[z]);
+  const zonesWithoutShare = byWeight ? [] : [...new Set(stations.map((s) => s.zone))].filter((z) => !event.share[z]);
   const warnings = [
     ...ready.warnings,
     ...plan.warnings,
@@ -72,10 +81,56 @@ export async function getEvent(id) {
   return { event, hours, stations, runners, jobs, plan: { rows: plan.rows.map((r) => ({ stationId: r.station.id, byHour: r.byHour, total: r.total })), total: plan.total }, warnings };
 }
 
-async function requirePin(id, pin) {
+// auth: { key } from the organiser link, or { pin } for older events.
+async function requirePin(id, auth = {}) {
   const res = await db.send(new GetCommand({ TableName: TABLE, Key: { PK: pk(id), SK: 'META' } }));
   if (!res.Item) throw new HttpError(404, 'Event not found.');
-  if (!verifyPin(pin ?? '', res.Item.pinHash)) throw new HttpError(403, 'Wrong organiser PIN.');
+  const ok = (auth.key && res.Item.keyHash && verifyPin(auth.key, res.Item.keyHash)) || (auth.pin && res.Item.pinHash && verifyPin(auth.pin, res.Item.pinHash));
+  if (!ok) throw new HttpError(403, auth.key ? 'This organiser link is not valid for this event.' : 'Wrong organiser PIN.');
+}
+
+export async function updateEvent(id, auth, input) {
+  await requirePin(id, auth);
+  const patch = validateEventPatch(input);
+  const names = {};
+  const values = {};
+  const sets = [];
+  for (const [k, v] of Object.entries(patch)) {
+    if (k === 'setup') {
+      for (const [sk, sv] of Object.entries(v)) {
+        names['#setup'] = 'setup';
+        names[`#${sk}`] = sk;
+        values[`:${sk}`] = sv;
+        sets.push(`#setup.#${sk} = :${sk}`);
+      }
+    } else {
+      names[`#${k}`] = k;
+      values[`:${k}`] = v;
+      sets.push(`#${k} = :${k}`);
+    }
+  }
+  await db.send(new UpdateCommand({ TableName: TABLE, Key: { PK: pk(id), SK: 'META' }, UpdateExpression: `SET ${sets.join(', ')}`, ExpressionAttributeNames: names, ExpressionAttributeValues: values }));
+  return { ok: true };
+}
+
+export async function updateStation(id, auth, sid, input) {
+  await requirePin(id, auth);
+  const patch = validateStationPatch(input);
+  const names = Object.fromEntries(Object.keys(patch).map((k) => [`#${k}`, k]));
+  const values = Object.fromEntries(Object.entries(patch).map(([k, v]) => [`:${k}`, v]));
+  await db
+    .send(
+      new UpdateCommand({
+        TableName: TABLE,
+        Key: { PK: pk(id), SK: `STN#${sid}` },
+        ConditionExpression: 'attribute_exists(SK)',
+        UpdateExpression: `SET ${Object.keys(patch).map((k) => `#${k} = :${k}`).join(', ')}`,
+        ExpressionAttributeNames: names,
+        ExpressionAttributeValues: values,
+      })
+    )
+    .catch(notFound('Station'));
+  return { ok: true };
 }
 
 async function countItems(id, prefix) {
@@ -95,7 +150,7 @@ export async function addStation(id, pin, input) {
   const s = validateStation(input);
   if ((await countItems(id, 'STN#')) >= LIMITS.stations) throw new HttpError(400, `At most ${LIMITS.stations} stations.`);
   const sid = newId(6);
-  await db.send(new PutCommand({ TableName: TABLE, Item: { PK: pk(id), SK: `STN#${sid}`, type: 'station', ...s, jarsOnHand: 0, cupsOnHand: 0, stocked: false, createdAt: new Date().toISOString() } }));
+  await db.send(new PutCommand({ TableName: TABLE, Item: { PK: pk(id), SK: `STN#${sid}`, type: 'station', ...s, order: Date.now(), jarsOnHand: 0, cupsOnHand: 0, stocked: false, createdAt: new Date().toISOString() } }));
   return { id: sid };
 }
 
@@ -111,7 +166,7 @@ export async function addRunner(id, pin, input) {
   const r = validateRunner(input);
   if ((await countItems(id, 'RUN#')) >= LIMITS.runners) throw new HttpError(400, `At most ${LIMITS.runners} runners.`);
   const rid = newId(6);
-  await db.send(new PutCommand({ TableName: TABLE, Item: { PK: pk(id), SK: `RUN#${rid}`, type: 'runner', ...r, status: 'free', createdAt: new Date().toISOString() } }));
+  await db.send(new PutCommand({ TableName: TABLE, Item: { PK: pk(id), SK: `RUN#${rid}`, type: 'runner', ...r, order: Date.now(), status: 'free', createdAt: new Date().toISOString() } }));
   return { id: rid };
 }
 

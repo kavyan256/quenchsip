@@ -9,6 +9,7 @@ import { join } from 'node:path';
 import assert from 'node:assert/strict';
 
 const WEB = process.env.WEB_URL || 'http://localhost:8080';
+const API = process.env.API_URL || 'http://localhost:3001';
 // API calls the test treats as "the network" when simulating no signal.
 const API_PATTERN = process.env.API_URL ? `${process.env.API_URL}/*` : '*:3001/*';
 const PORT = 9333;
@@ -89,28 +90,64 @@ async function apiCall(method, url, body) {
 try {
   await sleep(1500);
 
+  // Set up: only the name is typed; everything else is a default or a tap.
   const page = await open(`${WEB}/plan.html`);
-  await page.ev(`document.getElementById('pin').value = '2468'; document.getElementById('createEvent').click();`);
+  await page.ev(`document.getElementById('create').click()`);
+  await sleep(300);
+  assert.equal(await page.ev(`document.getElementById('nameError').hidden`), false, 'empty name is caught next to the field');
+  assert.equal(await page.ev(`document.activeElement.id`), 'name');
+  assert.match(await page.ev(`document.getElementById('order').textContent`), /^Order about \d+–\d+ jars/);
+  assert.equal(await page.ev(`document.getElementById('stations').textContent`), '4', '2,000 people -> 4 stations suggested');
+  await page.ev(`{ const n = document.getElementById('name'); n.value = 'Spring Fest'; n.dispatchEvent(new Event('input')); document.getElementById('create').click(); }`);
   await waitFor(page, `location.pathname === '/event.html'`, 15000);
-  const path = await page.ev('location.pathname + location.search');
-  assert.match(path, /^\/event\.html\?e=[a-z0-9]+$/);
-  const eventId = path.split('=')[1];
-  await waitFor(page, `document.querySelectorAll('#stations li').length === 4`, 15000);
-  step('plan saves an event and opens the organiser page');
+  const params = new URL(await page.ev('location.href'));
+  const eventId = params.searchParams.get('e');
+  const orgKey = new URLSearchParams(params.hash.slice(1)).get('k');
+  assert.match(orgKey, /^[a-z0-9]{24}$/, 'organiser link carries the private key');
+  await waitFor(page, `document.getElementById('stationsLine').textContent.startsWith('4 stations')`, 15000);
+  assert.match(await page.ev(`document.getElementById('progressText').textContent`), /1 of 4 done/);
+  step('set up with one typed field opens the hub: 4 stations, checklist 1 of 4');
 
-  await page.ev(`{ document.getElementById('pin').value = '0000'; const f = document.getElementById('addStation'); f.elements.name.value = 'Hack'; f.elements.zone.value = 'Gate'; f.requestSubmit(); }`);
-  await sleep(1200);
-  assert.equal(await page.ev(`document.getElementById('actionStatus').textContent`), 'Wrong organiser PIN.');
-  assert.equal(await page.ev(`document.querySelectorAll('#stations li').length`), 4);
-  step('wrong PIN cannot add a station');
+  // Stations sheet: rename, busy spot, add a station; saves as you go.
+  await page.ev(`document.getElementById('editStations').click()`);
+  await page.ev(`{ const i = document.querySelector('#stationRows input[data-field=name]'); i.value = 'Main gate'; i.dispatchEvent(new Event('change', { bubbles: true })); }`);
+  await waitFor(page, `document.getElementById('sheetSaved').textContent === 'Saved ✓'`);
+  await page.ev(`document.querySelectorAll('#stationRows input[data-field=busy]')[1].click()`);
+  await waitFor(page, `document.getElementById('stationsLine').textContent.includes('1 busy spot')`);
+  await page.ev(`document.getElementById('addStation').click()`);
+  await waitFor(page, `document.querySelectorAll('#stationRows li').length === 5`);
+  await page.ev(`document.getElementById('closeSheet').click()`);
+  assert.match(await page.ev(`document.getElementById('stationsLine').textContent`), /^5 stations \(Main gate, Station 2, Station 3 and 2 more\) · 1 busy spot · 2 runners$/);
+  step('stations sheet: rename, busy spot and add save as you go, in order');
 
-  await page.ev(`{ document.getElementById('pin').value = '2468'; const f = document.getElementById('addStation'); f.elements.name.value = 'Exit gate'; f.elements.zone.value = 'Gate'; f.requestSubmit(); }`);
-  await sleep(1200);
-  assert.equal(await page.ev(`document.getElementById('actionStatus').textContent`), 'Station added.');
-  assert.equal(await page.ev(`document.querySelectorAll('#stations li').length`), 5);
+  await page.ev(`document.getElementById('markOrdered').click()`);
+  await waitFor(page, `document.getElementById('progressText').textContent.includes('2 of 4 done')`);
+  assert.equal(await page.ev(`document.getElementById('step2').classList.contains('done')`), true);
   assert.deepEqual(page.errors, []);
   await page.close();
-  step('right PIN adds a station');
+  step('checklist ticks itself: "Mark as ordered" completes step 2');
+
+  // Without the key (another device): view only; edits refused by the API too.
+  const viewer = await open(`${WEB}/index.html`);
+  await viewer.ev(`localStorage.removeItem('qs-my-events')`);
+  await viewer.ev(`location.href = '/event.html?e=${eventId}'`);
+  await sleep(1500);
+  await waitFor(viewer, `document.getElementById('stationsLine').textContent !== ''`);
+  assert.equal(await viewer.ev(`document.getElementById('viewOnly').hidden`), false);
+  assert.equal(await viewer.ev(`document.getElementById('editStations').disabled`), true);
+  const refused = await fetch(`${API}/events/${eventId}`, { method: 'PATCH', headers: { 'content-type': 'application/json', 'x-organiser-key': 'x'.repeat(24) }, body: '{"runnerTripMin":5}' }).catch(() => null);
+  if (refused) assert.equal(refused.status, 403);
+  // Opening the organiser link again restores editing and "My events".
+  await viewer.ev(`location.href = '/event.html?e=${eventId}#k=${orgKey}'`);
+  await sleep(300);
+  await viewer.ev(`location.reload()`);
+  await sleep(1500);
+  await waitFor(viewer, `!document.getElementById('editStations').disabled`);
+  await viewer.ev(`location.href = '/index.html'`);
+  await sleep(1200);
+  assert.match(await viewer.ev(`document.getElementById('eventList').textContent`), /Spring Fest/);
+  await viewer.close();
+  step('without the organiser link the hub is view only; with it, editing works and the event is in "My events"');
 
   const qr = await open(`${WEB}/qr.html?e=${eventId}`);
   assert.equal(await qr.ev(`document.querySelectorAll('#grid .qr-card svg').length`), 5);
@@ -126,8 +163,29 @@ try {
   }
   step('each QR link opens the matching volunteer station');
 
+  // Volunteer's first visit: a short card once, then never again on this phone.
+  const first = await open(cards[0].url);
+  await waitFor(first, `!document.getElementById('intro').hidden`);
+  assert.match(await first.ev(`document.getElementById('introTitle').textContent`), new RegExp(cards[0].name));
+  await first.ev(`document.getElementById('introOk').click()`);
+  assert.equal(await first.ev(`document.getElementById('intro').hidden`), true);
+  await first.ev('location.reload()');
+  await sleep(1500);
+  await waitFor(first, `document.getElementById('station').textContent === ${JSON.stringify(cards[0].name)}`);
+  assert.equal(await first.ev(`document.getElementById('intro').hidden`), true, 'not shown again');
+  await first.close();
+  step('volunteer sees a 3-line "what to do" card once, then never again');
+
+  // Hub Live tab before the start: one calm "waiting for the count" card, no alarms.
+  const liveTab = await open(`${WEB}/event.html?e=${eventId}&tab=live`);
+  await waitFor(liveTab, `document.querySelector('#tiles .pre-start') !== null`);
+  assert.match(await liveTab.ev(`document.querySelector('#tiles .pre-start').textContent`), /0 of 5 stations counted/);
+  assert.equal(await liveTab.ev(`document.querySelectorAll('#tiles .tile').length`), 0);
+  assert.equal(await liveTab.ev(`document.getElementById('tabBtn-live').getAttribute('aria-selected')`), 'true');
+  await liveTab.close();
+  step('hub Live tab before the start: one calm card instead of an alarm per station');
+
   // Step 3: volunteer taps
-  const API = process.env.API_URL || 'http://localhost:3001';
   const stationId = new URL(cards[0].url).searchParams.get('s');
   const counts = async () => (await apiCall('GET', `${API}/events/${eventId}`)).stations.find((s) => s.id === stationId);
   const vol = await open(cards[0].url);
@@ -328,10 +386,11 @@ try {
     await post(`/events/${pre.id}/stations/${preSid(name)}/taps`, { uuid: crypto.randomUUID(), type: 'stocked', jars: 8, cups: 400, deviceTs: new Date().toISOString() });
   }
   const preBoard = await open(`${WEB}/board.html?e=${pre.id}`);
-  await waitFor(preBoard, `document.querySelectorAll('.tile').length === 3`);
-  assert.deepEqual(await preBoard.ev(tiles), ['West: Not stocked', 'North: OK', 'South: OK']);
+  await waitFor(preBoard, `document.querySelectorAll('.tile').length === 2`);
+  assert.deepEqual(await preBoard.ev(tiles), ['North: OK', 'South: OK']);
+  assert.match(await preBoard.ev(`document.querySelector('.pre-start').textContent`), /2 of 3 stations counted[\s\S]*Waiting for: West/);
   assert.match(await preBoard.ev(`document.getElementById('clock').textContent`), /^Starts at/);
-  step('start gate: exactly the unstocked station is flagged, first');
+  step('start gate: before the start, exactly the uncounted station is listed, in one calm card');
 
   const westPhone = await open(`${WEB}/v.html?e=${pre.id}&s=${preSid('West')}`);
   assert.equal(await westPhone.ev(`document.getElementById('stockCard').hidden`), false);
@@ -342,7 +401,7 @@ try {
   await waitFor(westPhone, `document.getElementById('stockCard').hidden && document.getElementById('syncState').textContent === 'All taps sent.'`);
   assert.match(await westPhone.ev(`document.getElementById('stockSummary').textContent`), /^Stocked at .*: 6 jars, 300 cups$/);
   await westPhone.close();
-  await waitFor(preBoard, `${tiles}.includes('West: OK')`, 10000);
+  await waitFor(preBoard, `${tiles}.includes('West: OK') && !document.querySelector('.pre-start')`, 10000);
   assert.match(await preBoard.ev(`[...document.querySelectorAll('.tile')].find(t => t.textContent.includes('West')).textContent`), /6 jars left/);
   await preBoard.close();
   step('volunteer confirms stock on the phone; board clears the flag and shows jars left');
@@ -400,8 +459,9 @@ try {
 
   const again = await open(`${WEB}/plan.html?from=${disp.id}`);
   await waitFor(again, `document.getElementById('name').value === 'Dispatch Test'`);
-  assert.equal(await again.ev(`document.querySelectorAll('#stations .station-row').length`), 1);
-  assert.equal(await again.ev(`document.getElementById('runners').value`), 'Asha');
+  assert.equal(await again.ev(`document.getElementById('stations').textContent`), '1');
+  assert.equal(await again.ev(`document.getElementById('runners').textContent`), '1');
+  assert.match(await again.ev(`document.getElementById('createStatus').textContent`), /Started from "Dispatch Test"/);
   await again.close();
   step('"Use as next year\'s plan" starts the plan from this event');
 

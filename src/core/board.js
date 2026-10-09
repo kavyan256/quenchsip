@@ -63,7 +63,7 @@ export function boardView({ event, stations, plan }, now) {
     if (a.rank !== b.rank) return a.rank - b.rank;
     if (a.status === 'needs_jars') return dryKey(a) - dryKey(b) || (a.lastJarAt || '').localeCompare(b.lastJarAt || '');
     if (a.status === 'quiet') return (b.silentMin ?? 0) - (a.silentMin ?? 0);
-    return a.station.name.localeCompare(b.station.name);
+    return a.station.name.localeCompare(b.station.name, undefined, { numeric: true }); // "Station 2" before "Station 10"
   });
 
   const summary = Object.fromEntries(Object.keys(STATUS).map((k) => [k, tiles.filter((t) => t.status === k).length]));

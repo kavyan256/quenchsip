@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { validateEvent, validatePin, ValidationError, hourLabels } from '../src/core/event.js';
+import { validateEvent, validatePin, ValidationError, hourLabels, crowdShare, validateEventPatch, validateStationPatch } from '../src/core/event.js';
 import { hashPin, verifyPin, newId } from '../src/lib/pin.js';
 
 const good = () => ({
@@ -22,7 +22,7 @@ test('valid event passes and is cleaned', () => {
   assert.equal(ev.name, 'Spring Fest');
   assert.equal(ev.stations.length, 2);
   assert.equal(ev.heatFactor, 1);
-  assert.equal(ev.jarSupplier, true);
+  assert.equal(ev.jarSupplier, undefined, 'not asked = no warning');
 });
 
 test('missing stations is rejected in plain words', () => {
@@ -61,4 +61,27 @@ test('ids are short and URL-safe', () => {
 
 test('hour labels wrap past midnight', () => {
   assert.deepEqual(hourLabels(22, 3), ['22:00', '23:00', '00:00']);
+});
+
+test('quick event: only name, people, hours and stations; everything else defaults', () => {
+  const ev = validateEvent({ name: 'Fest', attendees: 2000, hourCount: 3, stations: [{ name: 'Station 1' }, { name: 'Station 2', busy: true }] });
+  assert.equal(ev.share, undefined);
+  assert.deepEqual(ev.litresPerPersonHr, { low: 0.25, high: 0.5 });
+  assert.equal(ev.startHour, 0);
+  assert.equal(ev.runnerTripMin, 10);
+  assert.equal(ev.volunteerCount, undefined);
+  assert.deepEqual(ev.stations, [{ name: 'Station 1', zone: '', busy: false }, { name: 'Station 2', zone: '', busy: true }]);
+});
+
+test('crowd share: equal split, busy spot counts double', () => {
+  const share = crowdShare([{ id: 'a' }, { id: 'b', busy: true }, { id: 'c' }], 2);
+  assert.deepEqual(share, { a: [0.25, 0.25], b: [0.5, 0.5], c: [0.25, 0.25] });
+});
+
+test('edits: only known fields, at least one, checked ranges', () => {
+  assert.deepEqual(validateStationPatch({ name: ' Gate ', busy: true }), { name: 'Gate', busy: true });
+  assert.throws(() => validateStationPatch({}), /Nothing to change/);
+  assert.deepEqual(validateEventPatch({ runnerTripMin: 6, setup: { ordered: true }, junk: 1 }), { runnerTripMin: 6, setup: { ordered: true } });
+  assert.throws(() => validateEventPatch({ runnerTripMin: 0 }), /walking time/);
+  assert.throws(() => validateEventPatch({ litresPerPersonHr: { low: 1, high: 0.5 } }), /Low water/);
 });

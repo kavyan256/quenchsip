@@ -3,60 +3,119 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0F766E">
   <title>Event · Quench</title>
   <link rel="stylesheet" href="style.css">
+  <link rel="manifest" href="manifest.webmanifest">
 </head>
 <body>
-  <main>
-    <p><a href="index.html">← Quench</a></p>
+  <main class="hub">
+    <p class="top-nav"><a href="index.html">← My events</a></p>
     <h1 id="title">Loading…</h1>
-    <p class="lead" id="subtitle"></p>
+    <p class="small" id="subtitle"></p>
     <p id="loadError" class="error" hidden></p>
 
-    <div id="content" hidden>
-      <div id="warnings"></div>
+    <nav class="tabs" role="tablist" aria-label="Event sections">
+      <button type="button" role="tab" id="tabBtn-setup" data-tab="setup" aria-controls="tab-setup">Set up</button>
+      <button type="button" role="tab" id="tabBtn-live" data-tab="live" aria-controls="tab-live">Live</button>
+      <button type="button" role="tab" id="tabBtn-summary" data-tab="summary" aria-controls="tab-summary">Summary</button>
+    </nav>
 
-      <section class="card">
-        <h2>During the event</h2>
-        <p>Keep the live board open on a laptop or phone. Stations that need help come first.</p>
-        <p><a id="boardLink" href="#">Open the live board →</a></p>
-        <p><a id="summaryLink" href="#">Summary (water served, dry minutes, runners) →</a></p>
+    <!-- Set up: a checklist that ticks itself -->
+    <section id="tab-setup" role="tabpanel" aria-labelledby="tabBtn-setup" hidden>
+      <p class="progress"><span id="progressText">Ready in 4 steps</span> <span id="progressDots" aria-hidden="true"></span></p>
+      <p class="status warn" id="viewOnly" hidden>View only on this device. Open your organiser link to make changes.</p>
+
+      <article class="step" id="step1">
+        <div class="step-head"><span class="step-mark"></span><h2>Stations</h2></div>
+        <p id="stationsLine"></p>
+        <div class="action-row"><button type="button" class="ghost" id="editStations" data-edit>Edit names and busy spots</button></div>
+      </article>
+
+      <article class="step" id="step2">
+        <div class="step-head"><span class="step-mark"></span><h2>Order jars and cups</h2></div>
+        <p class="order" id="orderLine"></p>
+        <p class="small" id="orderBasis"></p>
+        <div class="action-row">
+          <button type="button" class="primary-btn" id="shareOrder" data-edit>Share with supplier</button>
+          <button type="button" class="ghost" id="markOrdered" data-edit>Mark as ordered</button>
+        </div>
+      </article>
+
+      <article class="step" id="step3">
+        <div class="step-head"><span class="step-mark"></span><h2>Give volunteers and runners their links</h2></div>
+        <p class="small">Each person scans their QR code once. No app, no login.</p>
+        <div class="action-row">
+          <a class="primary-btn" id="qrLink" href="#" target="_blank" rel="noopener">Print QR sheet</a>
+          <button type="button" class="ghost" id="shareLinks">Share links on WhatsApp</button>
+        </div>
+      </article>
+
+      <article class="step" id="step4">
+        <div class="step-head"><span class="step-mark"></span><h2>Stock check before the gates open</h2></div>
+        <p id="stockLine"></p>
+        <p class="small" id="stockMissing"></p>
+        <div class="action-row"><button type="button" class="ghost" id="reminder">Add reminder to calendar</button></div>
+      </article>
+
+      <section class="card keep-link" id="keepLink" hidden>
+        <h2>Keep your organiser link safe</h2>
+        <p class="small">It is the only way to edit this event. Anyone with it can edit, so share it only with co-organisers.</p>
+        <div class="action-row">
+          <button type="button" class="ghost" id="copyLink">Copy link</button>
+          <button type="button" class="ghost" id="sendLink">Send to myself</button>
+        </div>
       </section>
 
-      <section class="card">
-        <h2>Print the station QR codes</h2>
-        <p>Stick one at each water station. A volunteer scans it to open that station's screen.</p>
-        <p><a id="qrLink" href="#">Open the QR sheet →</a></p>
-      </section>
+      <details class="card finetune" id="fineTune">
+        <summary>Fine-tune</summary>
+        <div class="grid">
+          <label>Minutes for a runner to reach a station <input id="runnerTrip" type="number" min="1" max="120" inputmode="numeric" data-edit></label>
+          <label>Water per person per hour, low (L) <input id="lphLow" type="number" min="0" max="5" step="0.05" data-edit></label>
+          <label>Water per person per hour, high (L) <input id="lphHigh" type="number" min="0" max="5" step="0.05" data-edit></label>
+        </div>
+        <label class="switch-row"><span>Hot day (+30% water)</span><input id="hotDay" type="checkbox" role="switch" data-edit></label>
+        <p class="q">Reminders</p>
+        <label class="check-row"><input type="checkbox" id="rdVolunteers" data-edit> One volunteer for every station</label>
+        <label class="check-row"><input type="checkbox" id="rdSupplier" data-edit> Jar supplier confirmed</label>
+        <label class="check-row"><input type="checkbox" id="rdSignal" data-edit> Mobile signal works at the venue</label>
+        <p class="small" id="fineStatus" role="status" aria-live="polite"></p>
+      </details>
+    </section>
 
-      <section class="card">
-        <h2>Organiser PIN</h2>
-        <p class="small">Needed to add or remove stations and runners.</p>
-        <div class="grid"><label>PIN <input id="pin" type="password" inputmode="numeric" autocomplete="current-password" maxlength="8"></label></div>
-      </section>
+    <!-- Live: needs-you-now first -->
+    <section id="tab-live" role="tabpanel" aria-labelledby="tabBtn-live" hidden>
+      <div class="board-head">
+        <p class="small" id="clock"></p>
+        <p id="freshness" class="freshness" role="status" aria-live="polite"></p>
+      </div>
+      <div class="summary" id="summary"></div>
+      <div id="tiles"></div>
+      <p class="small"><a id="fullBoard" href="#" target="_blank" rel="noopener">Open the full-screen board (for a laptop) →</a></p>
+    </section>
 
-      <section class="card">
-        <h2>Water stations</h2>
-        <ul class="list" id="stations"></ul>
-        <form class="inline-form" id="addStation">
-          <label>Station name <input name="name" required maxlength="40"></label>
-          <label>Zone <input name="zone" required maxlength="40" list="zones"></label>
-          <button type="submit">Add station</button>
-        </form>
-        <datalist id="zones"></datalist>
-      </section>
+    <!-- Summary -->
+    <section id="tab-summary" role="tabpanel" aria-labelledby="tabBtn-summary" hidden>
+      <div id="summaryMount"><p class="small">Loading…</p></div>
+    </section>
 
-      <section class="card">
-        <h2>Runners</h2>
-        <ul class="list" id="runners"></ul>
-        <form class="inline-form" id="addRunner">
-          <label>Runner name <input name="name" required maxlength="40"></label>
-          <button type="submit">Add runner</button>
-        </form>
-      </section>
-
-      <p id="actionStatus" role="status" aria-live="polite"></p>
-    </div>
+    <dialog id="stationsSheet" aria-labelledby="sheetTitle">
+      <div class="sheet-head">
+        <h2 id="sheetTitle">Stations</h2>
+        <span class="small" id="sheetSaved" role="status" aria-live="polite"></span>
+      </div>
+      <p class="small">A <strong>busy spot</strong> (near the stage or food) gets twice the crowd. Changes save as you go.</p>
+      <ol class="station-list" id="stationRows"></ol>
+      <button type="button" class="ghost" id="addStation">+ Add station</button>
+      <h3>Runners</h3>
+      <ul class="runner-list" id="runnerRows"></ul>
+      <form class="inline-add" id="addRunner">
+        <label class="sr-only" for="runnerName">New runner name</label>
+        <input id="runnerName" placeholder="Runner name" maxlength="40" required>
+        <button type="submit" class="ghost">+ Add runner</button>
+      </form>
+      <button type="button" class="primary-btn big" id="closeSheet">Done</button>
+    </dialog>
   </main>
   <script type="module" src="event.js"></script>
 </body>

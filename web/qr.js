@@ -26,7 +26,7 @@ async function load() {
       return `<div class="qr-card">
         <div class="small">Quench water station</div>
         <div class="station-name">${escape(s.name)}</div>
-        <div class="small">Zone: ${escape(s.zone)}</div>
+        ${s.zone ? `<div class="small">Zone: ${escape(s.zone)}</div>` : ''}
         ${qrSvg(url)}
         <div class="small">Scan to open this station</div>
         <div class="small">${escape(url)}</div>

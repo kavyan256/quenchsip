@@ -40,8 +40,8 @@ Resources:
     Properties:
       CorsConfiguration:
         AllowOrigins: ['*']
-        AllowMethods: [GET, POST, DELETE, OPTIONS]
-        AllowHeaders: [content-type, x-organiser-pin]
+        AllowMethods: [GET, POST, PATCH, DELETE, OPTIONS]
+        AllowHeaders: [content-type, x-organiser-pin, x-organiser-key]
 
   ApiFunction:
     Type: AWS::Serverless::Function

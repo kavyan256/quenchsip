@@ -1,227 +1,169 @@
-import { planEvent, readiness } from './core/plan.js';
-import { hourLabels as labelsFor } from './core/event.js';
-import { api, savePin, escape, param } from './api.js';
+// Set up: one typed field (the name); everything else is a tap with a sensible default.
+import { api, param } from './api.js';
+import { rememberEvent } from './store.js';
+import { DEFAULT_LITRES_PER_PERSON_HR, JAR_LITRES, CUP_LITRES, PEOPLE_PER_OUTLET } from './core/plan.js';
 
 const $ = (id) => document.getElementById(id);
-const num = (id) => Number($(id).value) || 0;
-
-let stations = [
-  { id: 's1', name: 'Main gate', zone: 'Gate' },
-  { id: 's2', name: 'Food court', zone: 'Food' },
-  { id: 's3', name: 'Stage left', zone: 'Stage' },
-  { id: 's4', name: 'Stage right', zone: 'Stage' },
-];
-let nextId = 5;
-// share[zone][hour] in percent, kept across re-renders.
-let share = {};
-
-const zones = () => [...new Set(stations.map((s) => s.zone.trim() || 'Unnamed'))];
-
-const hourLabels = () => labelsFor(num('startHour'), Math.max(1, num('hourCount')));
-
-function renderStations() {
-  $('stations').innerHTML = stations
-    .map(
-      (s, i) => `
-      <div class="station-row">
-        <label>Station name <input data-i="${i}" data-field="name" value="${escape(s.name)}"></label>
-        <label>Zone <input data-i="${i}" data-field="zone" value="${escape(s.zone)}"></label>
-        <button class="ghost" type="button" data-remove="${i}" aria-label="Remove ${escape(s.name)}">Remove</button>
-      </div>`
-    )
-    .join('');
-}
-
-// Fills missing cells with an equal split; keeps anything the organiser typed.
-function syncShare() {
-  const zs = zones();
-  const n = hourLabels().length;
-  const even = Math.round(100 / zs.length);
-  const next = {};
-  for (const z of zs) {
-    next[z] = Array.from({ length: n }, (_, h) => (share[z] && share[z][h] !== undefined ? share[z][h] : even));
-  }
-  share = next;
-}
-
-function renderShareTable() {
-  const hours = hourLabels();
-  const head = `<tr><th>Zone</th>${hours.map((h) => `<th>${h}</th>`).join('')}</tr>`;
-  const body = zones()
-    .map(
-      (z) =>
-        `<tr><td>${escape(z)}</td>${hours
-          .map((_, h) => `<td><input type="number" min="0" max="100" data-zone="${escape(z)}" data-hour="${h}" value="${share[z][h]}" aria-label="${escape(z)} at ${hours[h]}, percent"></td>`)
-          .join('')}</tr>`
-    )
-    .join('');
-  $('shareTable').innerHTML = head + body;
-}
-
-function calculate() {
-  const hours = hourLabels();
-  const fractionShare = Object.fromEntries(Object.entries(share).map(([z, arr]) => [z, arr.map((p) => (Number(p) || 0) / 100)]));
-  const plan = planEvent({
-    attendees: num('attendees'),
-    hours,
-    stations: stations.map((s) => ({ ...s, zone: s.zone.trim() || 'Unnamed' })),
-    share: fractionShare,
-    litresPerPersonHr: { low: num('lphLow'), high: num('lphHigh') },
-    heatFactor: Number($('heat').value),
-  });
-  const ready = readiness({
-    attendees: num('attendees'),
-    stationCount: stations.length,
-    volunteerCount: num('volunteers'),
-    jarSupplier: $('supplier').value === 'yes',
-    signal: $('signal').value === 'yes',
-  });
-
-  const warnings = [...ready.warnings, ...plan.warnings];
-  $('readiness').innerHTML = warnings.length
-    ? `<div class="status warn"><strong>Fix before the event:</strong><ul>${warnings.map((w) => `<li>${escape(w)}</li>`).join('')}</ul></div>`
-    : `<div class="status ok"><strong>Ready.</strong> Enough stations, volunteers, a supplier and signal.</div>`;
-
-  const t = plan.total;
-  $('totals').innerHTML = `
-    <div><div class="big">${t.jarsLow}–${t.jarsHigh}</div><div class="small">20 L jars</div></div>
-    <div><div class="big">${t.cupsLow.toLocaleString('en-IN')}–${t.cupsHigh.toLocaleString('en-IN')}</div><div class="small">cups (200 ml)</div></div>
-    <div><div class="big">${Math.round(t.litresLow).toLocaleString('en-IN')}–${Math.round(t.litresHigh).toLocaleString('en-IN')}</div><div class="small">litres of water</div></div>`;
-
-  const head = `<tr><th>Station</th>${hours.map((h) => `<th>${h}</th>`).join('')}<th>Total jars</th><th>Total cups</th></tr>`;
-  const body = plan.rows
-    .map(
-      (r) =>
-        `<tr><td>${escape(r.station.name)} <span class="small">(${escape(r.station.zone)})</span></td>${r.byHour
-          .map((x) => `<td>${x.low.jars}–${x.high.jars}</td>`)
-          .join('')}<td><strong>${r.total.jarsLow}–${r.total.jarsHigh}</strong></td><td>${r.total.cupsLow.toLocaleString('en-IN')}–${r.total.cupsHigh.toLocaleString('en-IN')}</td></tr>`
-    )
-    .join('');
-  $('planTable').innerHTML = head + body;
-}
-
-function refreshAll() {
-  syncShare();
-  renderShareTable();
-  calculate();
-}
-
-$('stations').addEventListener('input', (e) => {
-  const i = e.target.dataset.i;
-  if (i === undefined) return;
-  stations[i][e.target.dataset.field] = e.target.value;
-  if (e.target.dataset.field === 'zone') refreshAll();
-  else calculate();
-});
-
-$('stations').addEventListener('click', (e) => {
-  const i = e.target.dataset.remove;
-  if (i === undefined || stations.length === 1) return;
-  stations.splice(Number(i), 1);
-  renderStations();
-  refreshAll();
-});
-
-$('addStation').addEventListener('click', () => {
-  stations.push({ id: `s${nextId}`, name: `Station ${nextId}`, zone: 'Gate' });
-  nextId++;
-  renderStations();
-  refreshAll();
-});
-
-$('shareTable').addEventListener('input', (e) => {
-  const { zone, hour } = e.target.dataset;
-  if (zone === undefined) return;
-  share[zone][Number(hour)] = Number(e.target.value) || 0;
-  calculate();
-});
-
-for (const id of ['startHour', 'hourCount']) $(id).addEventListener('input', refreshAll);
-for (const id of ['attendees', 'heat', 'lphLow', 'lphHigh', 'volunteers', 'supplier', 'signal']) {
-  $(id).addEventListener('input', calculate);
-  $(id).addEventListener('change', calculate);
-}
-
-// Event start in the organiser's own time zone, sent as an ISO time.
-const startsAt = () => {
-  const [y, m, d] = ($('date').value || '').split('-').map(Number);
-  return y ? new Date(y, m - 1, d, num('startHour')).toISOString() : undefined;
+const HOT_FACTOR = 1.3;
+const TEMPLATES = {
+  fest: { people: 3000, hours: 4, hot: false },
+  run: { people: 5000, hours: 3, hot: true },
+  concert: { people: 10000, hours: 4, hot: false },
 };
-{
-  const today = new Date();
-  $('date').value = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+
+// Steppers follow the crowd size until the organiser changes them by hand.
+const counts = { stations: 4, runners: 2 };
+const touched = { stations: false, runners: false };
+// Carried over from an earlier event ("Use as next year's plan").
+let carried = { stations: null, runners: null };
+
+const people = () => Math.max(1, Math.round(Number($('people').value) || 0));
+const hours = () => Number(document.querySelector('input[name="hours"]:checked').value);
+const nf = (n) => n.toLocaleString('en-IN');
+
+const suggestedStations = (p) => Math.max(2, Math.ceil(p / PEOPLE_PER_OUTLET));
+const suggestedRunners = (s) => Math.max(1, Math.ceil(s / 3));
+
+function update() {
+  if (!touched.stations && !carried.stations) counts.stations = Math.min(50, suggestedStations(people()));
+  if (!touched.runners && !carried.runners) counts.runners = Math.min(30, suggestedRunners(counts.stations));
+  $('stations').value = $('stations').textContent = counts.stations;
+  $('runners').value = $('runners').textContent = counts.runners;
+
+  const heat = $('hot').checked ? HOT_FACTOR : 1;
+  const litres = (rate) => people() * rate * heat * hours();
+  const low = litres(DEFAULT_LITRES_PER_PERSON_HR.low);
+  const high = litres(DEFAULT_LITRES_PER_PERSON_HR.high);
+  $('order').textContent = `Order about ${nf(Math.ceil(low / JAR_LITRES))}–${nf(Math.ceil(high / JAR_LITRES))} jars and ${nf(Math.ceil(low / CUP_LITRES))}–${nf(Math.ceil(high / CUP_LITRES))} cups`;
+  $('basis').textContent = `1 station per ${PEOPLE_PER_OUTLET} people · ${DEFAULT_LITRES_PER_PERSON_HR.low}–${DEFAULT_LITRES_PER_PERSON_HR.high} L per person per hour${heat > 1 ? ' (+30% hot day)' : ''} · 20 L jars, 200 ml cups`;
 }
 
-// Save the plan as an event, then go to the organiser page.
-$('createEvent').addEventListener('click', async () => {
-  const status = $('createStatus');
-  const pin = $('pin').value.trim();
-  if (!/^\d{4,8}$/.test(pin)) {
-    status.textContent = 'Choose a PIN of 4 to 8 digits. You need it to change the event later.';
+function setPeople(n) {
+  $('people').value = n;
+  for (const r of document.querySelectorAll('input[name="people"]')) r.checked = Number(r.value) === n;
+  update();
+}
+
+function step(which, delta, max) {
+  touched[which] = true;
+  carried[which] = null;
+  counts[which] = Math.min(max, Math.max(1, counts[which] + delta));
+  update();
+}
+
+// Next full hour, local time.
+function defaultStart() {
+  const d = new Date();
+  d.setHours(d.getHours() + 1, 0, 0, 0);
+  $('start').value = `${String(d.getHours()).padStart(2, '0')}:00`;
+}
+
+function eventStart() {
+  const [hh, mm] = ($('start').value || '17:00').split(':').map(Number);
+  const choice = document.querySelector('input[name="day"]:checked').value;
+  let d = new Date();
+  if (choice === 'tomorrow') d.setDate(d.getDate() + 1);
+  if (choice === 'pick' && $('date').value) {
+    const [y, m, day] = $('date').value.split('-').map(Number);
+    d = new Date(y, m - 1, day);
+  }
+  d.setHours(hh, mm || 0, 0, 0);
+  return d;
+}
+
+document.querySelectorAll('input[name="people"]').forEach((r) => r.addEventListener('change', () => setPeople(Number(r.value))));
+$('people').addEventListener('input', () => {
+  for (const r of document.querySelectorAll('input[name="people"]')) r.checked = Number(r.value) === people();
+  update();
+});
+document.querySelectorAll('input[name="hours"]').forEach((r) => r.addEventListener('change', update));
+$('hot').addEventListener('change', update);
+document.querySelectorAll('input[name="day"]').forEach((r) =>
+  r.addEventListener('change', () => {
+    $('date').hidden = r.value !== 'pick' || !r.checked;
+    if (!$('date').hidden) $('date').focus();
+  })
+);
+$('stationsMinus').addEventListener('click', () => step('stations', -1, 50));
+$('stationsPlus').addEventListener('click', () => step('stations', 1, 50));
+$('runnersMinus').addEventListener('click', () => step('runners', -1, 30));
+$('runnersPlus').addEventListener('click', () => step('runners', 1, 30));
+
+document.querySelectorAll('[data-template]').forEach((b) =>
+  b.addEventListener('click', () => {
+    const t = TEMPLATES[b.dataset.template];
+    document.querySelectorAll('[data-template]').forEach((x) => x.classList.toggle('on', x === b));
+    for (const r of document.querySelectorAll('input[name="hours"]')) r.checked = Number(r.value) === t.hours;
+    $('hot').checked = t.hot;
+    touched.stations = touched.runners = false;
+    setPeople(t.people);
+    if (!$('name').value) $('name').focus();
+  })
+);
+
+$('name').addEventListener('input', () => {
+  $('nameError').hidden = true;
+  $('name').removeAttribute('aria-invalid');
+});
+
+$('setup').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const name = $('name').value.trim();
+  if (!name) {
+    $('nameError').hidden = false;
+    $('name').setAttribute('aria-invalid', 'true');
+    $('name').focus();
     return;
   }
-  $('createEvent').disabled = true;
-  status.textContent = 'Saving…';
+  const start = eventStart();
+  const stations =
+    carried.stations && carried.stations.length === counts.stations
+      ? carried.stations
+      : Array.from({ length: counts.stations }, (_, i) => carried.stations?.[i] || { name: `Station ${i + 1}` });
+  const runners = Array.from({ length: counts.runners }, (_, i) => carried.runners?.[i] || { name: `Runner ${i + 1}` });
+
+  $('create').disabled = true;
+  $('create').textContent = 'Creating…';
   try {
-    const { id } = await api('POST', '/events', {
+    const { id, key } = await api('POST', '/events', {
       body: {
-        name: $('name').value,
-        startsAt: startsAt(),
-        attendees: num('attendees'),
-        startHour: num('startHour'),
-        hourCount: Math.max(1, num('hourCount')),
-        heatFactor: Number($('heat').value),
-        litresPerPersonHr: { low: num('lphLow'), high: num('lphHigh') },
-        share: Object.fromEntries(Object.entries(share).map(([z, arr]) => [z, arr.map((p) => (Number(p) || 0) / 100)])),
-        volunteerCount: num('volunteers'),
-        runnerTripMin: num('runnerTrip') || 10,
-        jarSupplier: $('supplier').value === 'yes',
-        signal: $('signal').value === 'yes',
-        stations: stations.map((s) => ({ name: s.name, zone: s.zone.trim() || 'Unnamed' })),
-        runners: $('runners').value.split('\n').map((n) => n.trim()).filter(Boolean).map((name) => ({ name })),
-        pin,
+        name,
+        attendees: people(),
+        startsAt: start.toISOString(),
+        startHour: start.getHours(),
+        hourCount: hours(),
+        heatFactor: $('hot').checked ? HOT_FACTOR : 1,
+        stations,
+        runners,
       },
     });
-    savePin(id, pin);
-    location.href = `event.html?e=${id}`;
+    rememberEvent({ id, name, startsAt: start.toISOString(), key });
+    location.href = `event.html?e=${id}#k=${key}`;
   } catch (err) {
-    status.textContent = err.message;
-    $('createEvent').disabled = false;
+    $('createStatus').textContent = err.message;
+    $('createStatus').classList.add('error');
+    $('create').disabled = false;
+    $('create').textContent = 'Create event';
   }
 });
 
-// "Use as next year's plan": start from an earlier event's settings (the date is left for the new event).
+// "Use as next year's plan": start from an earlier event (new date and time).
 async function prefill(fromId) {
-  const { event, stations: old, runners } = await api('GET', `/events/${fromId}`);
+  const { event, stations, runners } = await api('GET', `/events/${fromId}`);
   $('name').value = event.name;
-  $('attendees').value = event.attendees;
-  $('startHour').value = event.startHour;
-  $('hourCount').value = event.hourCount;
-  $('lphLow').value = event.litresPerPersonHr.low;
-  $('lphHigh').value = event.litresPerPersonHr.high;
-  $('volunteers').value = event.volunteerCount ?? old.length;
-  $('runnerTrip').value = event.runnerTripMin ?? 10;
-  $('supplier').value = event.jarSupplier === false ? 'no' : 'yes';
-  $('signal').value = event.signal === false ? 'no' : 'yes';
-  const heat = [...$('heat').options].find((o) => Number(o.value) === event.heatFactor);
-  if (heat) $('heat').value = heat.value;
-  stations = old.map((s, i) => ({ id: `s${i + 1}`, name: s.name, zone: s.zone }));
-  nextId = stations.length + 1;
-  share = Object.fromEntries(Object.entries(event.share).map(([z, arr]) => [z, arr.map((f) => Math.round(f * 100))]));
-  $('runners').value = (runners || []).map((r) => r.name).join('\n');
-  $('createStatus').textContent = `Started from "${event.name}". Pick the new date and a PIN, then save.`;
+  for (const r of document.querySelectorAll('input[name="hours"]')) r.checked = Number(r.value) === event.hourCount;
+  $('hot').checked = (event.heatFactor || 1) > 1;
+  carried = {
+    stations: stations.map((s) => ({ name: s.name, busy: Boolean(s.busy) })),
+    runners: (runners || []).map((r) => ({ name: r.name })),
+  };
+  counts.stations = carried.stations.length;
+  counts.runners = Math.max(1, carried.runners.length);
+  setPeople(event.attendees);
+  $('createStatus').textContent = `Started from "${event.name}": same stations and runners. Pick the new date, then create.`;
 }
 
-renderStations();
-refreshAll();
+defaultStart();
+update();
 const fromId = param('from');
-if (fromId) {
-  prefill(fromId)
-    .then(() => {
-      renderStations();
-      refreshAll();
-    })
-    .catch((err) => {
-      $('createStatus').textContent = `Could not load the earlier event: ${err.message}`;
-    });
-}
+if (fromId) prefill(fromId).catch((err) => ($('createStatus').textContent = `Could not load the earlier event: ${err.message}`));

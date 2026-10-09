@@ -12,10 +12,11 @@ export class ApiError extends Error {
   }
 }
 
-export async function api(method, path, { body, pin, timeoutMs = 10000 } = {}) {
+export async function api(method, path, { body, pin, key, timeoutMs = 10000 } = {}) {
   const headers = {};
   if (body) headers['content-type'] = 'application/json';
   if (pin) headers['x-organiser-pin'] = pin;
+  if (key) headers['x-organiser-key'] = key;
   let res;
   try {
     res = await fetch(API + path, { method, headers, body: body ? JSON.stringify(body) : undefined, signal: AbortSignal.timeout(timeoutMs) });

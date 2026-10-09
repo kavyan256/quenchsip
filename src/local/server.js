@@ -6,8 +6,8 @@ import { handler } from '../api/handler.js';
 const PORT = Number(process.env.PORT || 3001);
 const CORS = {
   'access-control-allow-origin': '*',
-  'access-control-allow-methods': 'GET,POST,DELETE,OPTIONS',
-  'access-control-allow-headers': 'content-type,x-organiser-pin',
+  'access-control-allow-methods': 'GET,POST,PATCH,DELETE,OPTIONS',
+  'access-control-allow-headers': 'content-type,x-organiser-pin,x-organiser-key',
 };
 
 createServer(async (req, res) => {

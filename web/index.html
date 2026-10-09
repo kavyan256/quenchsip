@@ -3,22 +3,36 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#0F766E">
   <title>Quench</title>
   <link rel="stylesheet" href="style.css">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icon.svg" type="image/svg+xml">
 </head>
 <body>
-  <main>
-    <h1>Quench</h1>
-    <p class="lead">Water control room for plastic-free events. Plan the jars and cups, make sure every station is stocked, and send a runner before a station runs dry.</p>
-    <div class="card">
-      <h2>Organiser</h2>
-      <p><a href="plan.html">Plan your event's water and save it →</a></p>
-    </div>
-    <div class="card">
-      <h2>Why it helps</h2>
-      <p><a href="demo.html">Play a simulated evening: Quench vs a WhatsApp group →</a></p>
-      <p><a href="architecture.html">How it runs on AWS →</a></p>
-    </div>
+  <main class="narrow home">
+    <div class="brand"><img src="icon.svg" alt="" width="40" height="40"><span>Quench</span></div>
+    <p class="eyebrow">Water for plastic-free events</p>
+    <h1 class="hero">Refill stations instead of bottles, without stations running dry.</h1>
+    <a class="primary-btn big" href="plan.html">Set up an event's water</a>
+
+    <section id="mine" hidden>
+      <h2 class="q">My events</h2>
+      <ul class="event-list" id="eventList"></ul>
+    </section>
+
+    <section class="how">
+      <h2 class="q">How it works</h2>
+      <ol class="how-list">
+        <li><strong>Plan</strong> in 30 seconds: how many jars and cups to order.</li>
+        <li><strong>Volunteers</strong> scan a QR code at their station and tap when they change a jar.</li>
+        <li><strong>Runners</strong> are sent before a station runs dry.</li>
+        <li><strong>After</strong>: litres served and plastic bottles avoided.</li>
+      </ol>
+    </section>
+
+    <p class="links"><a href="demo.html">See it in 30 seconds (simulation) →</a><br><a href="architecture.html">How it runs on AWS →</a></p>
   </main>
+  <script type="module" src="home.js"></script>
 </body>
 </html>

@@ -164,7 +164,20 @@ async function start() {
   document.title = `${info.name} · Quench`;
   $('eventName').textContent = info.eventName;
   $('station').textContent = info.name;
-  $('zone').textContent = t('zone', { zone: info.zone });
+  $('zone').textContent = info.zone ? t('zone', { zone: info.zone }) : '';
+  // First visit on this phone: one short card, then never again.
+  const introKey = `qs-intro-${eventId}-${stationId}`;
+  let seen = false;
+  try { seen = localStorage.getItem(introKey) === '1'; } catch {}
+  if (!seen) {
+    $('introTitle').textContent = t('introTitle', { station: info.name });
+    $('intro').hidden = false;
+    $('introOk').onclick = () => {
+      $('intro').hidden = true;
+      try { localStorage.setItem(introKey, '1'); } catch {}
+      $('station').scrollIntoView({ behavior: 'smooth' });
+    };
+  }
   if (info.offline) feedback('pending', escape(t('noSignal')));
   $('buttons').hidden = false;
   await pruneSent(eventId, stationId);
@@ -179,7 +192,10 @@ if ('serviceWorker' in navigator && window.isSecureContext) {
 
 applyStatic();
 languageButton($('lang'), () => {
-  if (stationInfo) $('zone').textContent = t('zone', { zone: stationInfo.zone });
+  if (stationInfo) {
+    $('zone').textContent = stationInfo.zone ? t('zone', { zone: stationInfo.zone }) : '';
+    $('introTitle').textContent = t('introTitle', { station: stationInfo.name });
+  }
   render();
 });
 

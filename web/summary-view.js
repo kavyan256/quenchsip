@@ -1,0 +1,68 @@
+// Summary markup, shared by summary.html and the Summary tab of the event hub.
+import { api, escape } from './api.js';
+import { stationsCsv } from './core/summary.js';
+import { shareText } from './share.js';
+
+const n = (x) => Number(x).toLocaleString('en-IN');
+const stat = (big, label) => `<div class="stat"><div class="big">${big}</div><div class="small">${escape(label)}</div></div>`;
+
+export async function mountSummary(container, eventId) {
+  const s = await api('GET', `/events/${eventId}/summary`);
+  const d = s.dispatch;
+  container.innerHTML = `
+    <div id="content">
+      <section class="card">
+        <h2>Water from refill stations</h2>
+        <div class="totals" id="water">
+          ${stat(`${n(s.water.litres)} L`, 'water dispensed')}
+          ${stat(`up to ${n(s.water.bottlesUpTo)}`, 'plastic bottles (500 ml) not bought')}
+          ${stat(`${s.water.petKg.low}–${s.water.petKg.high} kg`, 'PET plastic avoided, at most')}
+        </div>
+        <p class="note" id="formula">${escape(s.water.formula)}</p>
+      </section>
+      <section class="card">
+        <h2>Did stations run dry?</h2>
+        <div class="totals" id="dry">
+          ${stat(`${s.totals.stockedBeforeStart} of ${s.totals.stations}`, 'stations stocked before the start')}
+          ${stat(`${s.totals.stationsThatRanDry}`, 'stations that ran dry')}
+          ${stat(`${n(s.totals.dryMinutes)} min`, 'dry minutes in total')}
+        </div>
+        <p class="note">Dry minutes are counted by the check every 2 minutes, while a station is past its expected run-dry time with no new jars.</p>
+      </section>
+      <section class="card">
+        <h2>Runners</h2>
+        <div class="totals" id="dispatch">
+          ${stat(`${d.delivered} of ${d.jobs}`, 'runner jobs delivered')}
+          ${stat(`${n(d.jarsDelivered)}`, 'jars delivered by runners')}
+          ${stat(d.medianMinutesToDeliver === null ? '–' : `${d.medianMinutesToDeliver} min`, 'typical time from alert to delivery (median)')}
+        </div>
+      </section>
+      <section class="card">
+        <h2>By station</h2>
+        <div class="table-wrap"><table>
+          <tr><th>Station</th><th>Jars swapped</th><th>Litres</th><th>Dry min</th><th>Counted before start</th><th>Restocks (jars)</th></tr>
+          ${s.stations.map((r) => `<tr><td>${escape(r.name)}</td><td>${r.swaps}</td><td>${n(r.litres)}</td><td>${r.dryMinutes}</td><td>${r.stockedBeforeStart ? 'yes' : 'no'}</td><td>${r.restocks} (${r.jarsDelivered})</td></tr>`).join('')}
+        </table></div>
+      </section>
+      <div class="action-row no-print">
+        <button type="button" class="primary-btn" data-act="share">Share on WhatsApp</button>
+        <button type="button" class="ghost" data-act="csv">Download CSV</button>
+        <button type="button" class="ghost" data-act="print">Print</button>
+        <a class="ghost-link" href="plan.html?from=${eventId}">Use as next year's plan →</a>
+      </div>
+    </div>`;
+
+  container.querySelector('[data-act="share"]').onclick = () =>
+    shareText(
+      `${s.event.name}: ${n(s.water.litres)} L of water served from refill stations, up to ${n(s.water.bottlesUpTo)} plastic bottles not bought. ${s.totals.stockedBeforeStart} of ${s.totals.stations} stations ready before the start. ${location.origin}/summary.html?e=${eventId}`,
+      `${s.event.name} summary`
+    );
+  container.querySelector('[data-act="csv"]').onclick = () => {
+    const url = URL.createObjectURL(new Blob([stationsCsv(s)], { type: 'text/csv' }));
+    const a = Object.assign(document.createElement('a'), { href: url, download: `${s.event.name.replace(/[^\w-]+/g, '_')}_stations.csv` });
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+  container.querySelector('[data-act="print"]').onclick = () => window.print();
+  return s;
+}

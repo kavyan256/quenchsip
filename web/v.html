@@ -5,6 +5,8 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Station · Quench</title>
   <link rel="stylesheet" href="style.css">
+  <link rel="manifest" href="manifest.webmanifest">
+  <meta name="theme-color" content="#0F766E">
 </head>
 <body>
   <main class="volunteer">
@@ -13,6 +15,16 @@
     <div class="station-name" id="station">Loading…</div>
     <p class="small" id="zone"></p>
     <p id="loadError" class="error" hidden></p>
+
+    <section class="intro card" id="intro" hidden aria-labelledby="introTitle">
+      <h2 id="introTitle"></h2>
+      <ol>
+        <li data-i18n="intro1">Count your jars and cups now.</li>
+        <li data-i18n="intro2">Tap "Jar swapped" every time you put a new jar on.</li>
+        <li data-i18n="intro3">Tap "Last jar" when you are on your final jar. A runner comes.</li>
+      </ol>
+      <button type="button" class="primary-btn big" id="introOk" data-i18n="gotIt">Got it</button>
+    </section>
 
     <div id="buttons" hidden>
       <form class="card stock-card" id="stockCard" hidden>

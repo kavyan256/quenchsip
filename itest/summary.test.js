@@ -18,7 +18,9 @@ test('summary: litres, bottles, stocked-before-start, runner jobs', async () => 
   });
   const id = data.id;
   const ev = (await call('GET', `/events/${id}`)).data;
-  const [a, b] = ev.stations;
+  // Stations come back sorted by id, not creation order, so look them up by name.
+  const a = ev.stations.find((x) => x.name === 'A');
+  const b = ev.stations.find((x) => x.name === 'B');
   const tap = (sid, type, minAfterStart, extra = {}) =>
     call('POST', `/events/${id}/stations/${sid}/taps`, { uuid: newTapId(), type, deviceTs: new Date(start + minAfterStart * 60000).toISOString(), ...extra });
 

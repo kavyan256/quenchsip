@@ -23,6 +23,15 @@ Built for Environmental Hacks (WeMakeDevs x AWS), Waste and Energy track, 8-11 O
 - [x] Step 11: simulation page: same evening with a WhatsApp group vs Quench (labelled simulation, assumptions on screen)
 - [x] Step 12: Hindi on volunteer and runner screens, keyboard focus, light/dark checked
 
+## Using it
+1. **Set up** (`plan.html`): type the event name; tap the crowd size, day, start time and length. Quench suggests stations and runners and shows how many jars and cups to order. One button: **Create event**.
+2. **Event hub** (`event.html`): three tabs.
+   - **Set up**: a checklist that ticks itself: stations (rename, mark busy spots), order (share with supplier on WhatsApp), links (print QR sheet or share on WhatsApp), stock check (fills in as volunteers count).
+   - **Live**: problems first; OK stations fold away.
+   - **Summary**: water served, bottles avoided, runner times.
+3. **No accounts or PIN.** Creating an event gives a private organiser link (`…#k=<key>`). The key sits after `#`, so it is never sent in the URL; the page sends it in a header and the server stores only its hash. The link is saved in "My events" on that device; "Send to myself" shares it to another device. Without it, the hub is view only.
+4. **Volunteers and runners** open their own link or QR code. Add to home screen for an app-like icon (web app manifest).
+
 ## Architecture
 | Piece | Local | AWS |
 |---|---|---|
