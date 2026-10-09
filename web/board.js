@@ -16,6 +16,7 @@ function detail(t, now) {
   const p = t.projection;
   const dry = p.dryAt ? (p.dry ? `Probably dry since ${time(Date.parse(p.dryAt))}` : `Runs dry about ${time(Date.parse(p.dryAt))} (in ${p.minutesToDry} min)`) : '';
   if (t.status === 'needs_jars') return dry || `Last jar tapped ${ago(t.lastJarAt, now)}`;
+  if (t.status === 'not_stocked') return 'Volunteer has not confirmed the stock yet';
   if (t.status === 'quiet') return t.lastTapAt ? `No taps for ${t.silentMin} min` : `No taps since the event started (${t.silentMin} min)`;
   if (t.status === 'cups_low') return `Cups low since ${ago(t.station.cupsLowAt, now)}`;
   return dry || `Last tap ${ago(t.lastTapAt, now)}`;
@@ -26,7 +27,7 @@ function basis(t) {
   const p = t.projection;
   const parts = [];
   if (p.jarsLeft !== null) parts.push(`${p.jarsLeft} jar${p.jarsLeft === 1 ? '' : 's'} left`);
-  else parts.push('Jars left: not known yet');
+  else parts.push(t.flags.notStocked ? 'Jars left: not known until stocked' : 'Jars left: not known yet');
   if (p.intervalMin) parts.push(`~${Math.round(p.intervalMin)} min per jar (${p.intervalSource === 'measured' ? 'measured' : 'from plan'})`);
   if (t.flags.lastJar && t.flags.runningDry) parts.push(`last jar tapped ${ago(t.lastJarAt, Date.now())}`);
   return parts.join(' · ');

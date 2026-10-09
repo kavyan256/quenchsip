@@ -193,7 +193,9 @@ try {
   });
   const liveStations = (await (await fetch(`${API}/events/${live.id}`)).json()).stations;
   const sidOf = (name) => liveStations.find((s) => s.name === name).id;
-  const tapApi = (name, type, deviceTs = new Date().toISOString()) => post(`/events/${live.id}/stations/${sidOf(name)}/taps`, { uuid: crypto.randomUUID(), type, deviceTs });
+  const tapApi = (name, type, deviceTs = new Date().toISOString(), extra = {}) => post(`/events/${live.id}/stations/${sidOf(name)}/taps`, { uuid: crypto.randomUUID(), type, deviceTs, ...extra });
+  // Every station confirmed 10 jars at the start (~96 min of water at the plan's busy rate).
+  for (const name of ['Alpha', 'Bravo', 'Charlie', 'Delta']) await tapApi(name, 'stocked', live.startsAt ?? new Date(Date.now() - 30 * 60000).toISOString(), { jars: 10, cups: 500 });
   await tapApi('Bravo', 'last_jar');
   await tapApi('Charlie', 'swap');
   // 250 people per station at 0.25 L/hr -> 19.2 min per jar -> quiet after 29 min. Delta tapped 20 s short of that.
@@ -223,6 +225,40 @@ try {
   assert.deepEqual(board.errors, []);
   await board.close();
   step('board says when it has stopped updating, and recovers');
+
+  // Start-of-event stock check: 3 stations, 2 confirmed by API, the third through the volunteer screen.
+  const pre = await post('/events', {
+    name: 'Stock Test',
+    startsAt: new Date(Date.now() + 20 * 60000).toISOString(), // gates open in 20 min
+    attendees: 1000, startHour: 0, hourCount: 3,
+    litresPerPersonHr: { low: 0.25, high: 0.5 }, share: { Field: [1, 1, 1] },
+    stations: [{ name: 'North', zone: 'Field' }, { name: 'South', zone: 'Field' }, { name: 'West', zone: 'Field' }],
+    pin: '2468',
+  });
+  const preStations = (await (await fetch(`${API}/events/${pre.id}`)).json()).stations;
+  const preSid = (name) => preStations.find((s) => s.name === name).id;
+  for (const name of ['North', 'South']) {
+    await post(`/events/${pre.id}/stations/${preSid(name)}/taps`, { uuid: crypto.randomUUID(), type: 'stocked', jars: 8, cups: 400, deviceTs: new Date().toISOString() });
+  }
+  const preBoard = await open(`${WEB}/board.html?e=${pre.id}`);
+  await waitFor(preBoard, `document.querySelectorAll('.tile').length === 3`);
+  assert.deepEqual(await preBoard.ev(tiles), ['West: Not stocked', 'North: OK', 'South: OK']);
+  assert.match(await preBoard.ev(`document.getElementById('clock').textContent`), /^Starts at/);
+  step('start gate: exactly the unstocked station is flagged, first');
+
+  const westPhone = await open(`${WEB}/v.html?e=${pre.id}&s=${preSid('West')}`);
+  assert.equal(await westPhone.ev(`document.getElementById('stockCard').hidden`), false);
+  assert.match(await westPhone.ev(`document.getElementById('stockHint').textContent`), /plan expects about \d+–\d+ jars/);
+  await westPhone.ev(`document.getElementById('stockJars').value = '6'; document.getElementById('stockCups').value = '300'; document.getElementById('stockCard').requestSubmit();`);
+  // "All taps sent." is also true before the tap exists, so first wait for the saved message.
+  await waitFor(westPhone, `document.getElementById('feedback').textContent.startsWith('Saved: 6 jars and 300 cups')`);
+  await waitFor(westPhone, `document.getElementById('stockCard').hidden && document.getElementById('syncState').textContent === 'All taps sent.'`);
+  assert.match(await westPhone.ev(`document.getElementById('stockSummary').textContent`), /^Stocked at .*: 6 jars, 300 cups$/);
+  await westPhone.close();
+  await waitFor(preBoard, `${tiles}.includes('West: OK')`, 10000);
+  assert.match(await preBoard.ev(`[...document.querySelectorAll('.tile')].find(t => t.textContent.includes('West')).textContent`), /6 jars left/);
+  await preBoard.close();
+  step('volunteer confirms stock on the phone; board clears the flag and shows jars left');
 
   const bad = await open(`${WEB}/v.html?e=${eventId}&s=zzzzzz`);
   assert.match(await bad.ev(`document.getElementById('loadError').textContent`), /removed/);

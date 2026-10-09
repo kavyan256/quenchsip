@@ -219,6 +219,13 @@ td input {
 
 .recent-title { font-size: 1rem; color: var(--muted); margin-top: 8px; }
 
+.stock-card { border: 2px solid var(--accent); }
+.stock-row { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
+.stock-row input { font-size: 1.4rem; font-weight: 700; }
+.stock-card button[type="submit"] { width: 100%; min-height: 56px; font-size: 1.15rem; }
+.stock-done { margin-top: 16px; color: var(--muted); }
+.stock-done summary { cursor: pointer; font-weight: 600; min-height: 44px; display: flex; align-items: center; }
+
 /* Live board */
 .board { max-width: 1200px; }
 .board-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; flex-wrap: wrap; }
@@ -236,10 +243,12 @@ td input {
 .st-needs_jars { background: var(--st-red-bg); color: var(--st-red); border-color: var(--st-red); }
 .tile.st-needs_jars { border-width: 4px; }
 .st-quiet { background: var(--st-quiet-bg); color: var(--st-quiet); border-color: var(--st-quiet); }
+.st-not_stocked { background: var(--st-red-bg); color: var(--st-red); border-color: var(--st-red); border-style: dashed; }
 .st-cups_low { background: var(--st-amber-bg); color: var(--st-amber); border-color: var(--st-amber); }
 .st-ok { background: var(--st-ok-bg); color: var(--st-ok); border-color: transparent; }
 
 .sync { font-weight: 600; margin: 0 0 8px; }
+.sync:empty { display: none; }
 .sync::before { content: "● "; }
 .sync.ok { color: var(--ok-text); }
 .sync.pending, .sync.warn { color: var(--warn-text); }

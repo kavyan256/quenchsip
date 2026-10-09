@@ -26,6 +26,10 @@ async function liveEvent(now, startedMinAgo = 30) {
   });
   const { stations } = await call('GET', `/events/${id}`);
   const sid = (name) => stations.find((s) => s.name === name).id;
+  // Volunteers confirm stock as the event starts: 20 jars lasts ~96 min at the plan's busy rate (4.8 min per jar).
+  for (const s of stations) {
+    await call('POST', `/events/${id}/stations/${s.id}/taps`, { uuid: newTapId(), type: 'stocked', jars: 20, cups: 500, deviceTs: minAgo(startedMinAgo, now) });
+  }
   return { id, sid };
 }
 

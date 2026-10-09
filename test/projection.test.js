@@ -31,6 +31,19 @@ test('jars left after "Last jar", stocking and restocks', () => {
   assert.equal(jarsLeft({ swapTimes: [at(10)] }), null, 'unknown without stock or last-jar');
 });
 
+test('stock count: only swaps and restocks after the count, newest of count or "Last jar" wins', () => {
+  assert.equal(jarsLeft({ stockedJars: 6, stockedAt: at(15), swapTimes: [at(10), at(20)] }), 5);
+  assert.equal(jarsLeft({ stockedJars: 6, stockedAt: at(15), restocks: [{ at: at(5), jars: 9 }, { at: at(25), jars: 2 }] }), 8);
+  assert.equal(jarsLeft({ stockedJars: 6, stockedAt: at(15), lastJarAt: at(30), swapTimes: [at(20)] }), 1, 'last jar after the count');
+  assert.equal(jarsLeft({ stockedJars: 6, stockedAt: at(30), lastJarAt: at(15), swapTimes: [at(20)] }), 6, 'recount after the last jar');
+});
+
+test('the jar on the tap is full when stocked: dry time counts from the later of last swap or stock count', () => {
+  // 3 jars counted at 30 (after a swap at 20); 10 min per jar from plan -> dry at 30 + 3 x 10 = 60
+  const p = project({ stockedJars: 3, stockedAt: at(30), swapTimes: [at(20)], lastTapAt: at(30) }, { now: ms(31), clock: live, planned });
+  assert.equal(p.dryAt, at(60));
+});
+
 test('U6: last swap at 20, 10 min per jar, 2 jars left -> dry at 40', () => {
   const p = project({ stockedJars: 5, swapTimes: [at(0), at(10), at(20)], lastTapAt: at(20) }, { now: ms(21), clock: live, planned });
   assert.equal(p.jarsLeft, 2);

@@ -84,3 +84,21 @@ test('unknown station gives 404; bad tap gives 400; taps are not returned with t
   const ev = await call('GET', `/events/${id}`);
   assert.equal(JSON.stringify(ev.data).includes('TAP#'), false);
 });
+
+test('stocked tap saves the counts; a recount replaces them; a retry counts once', async () => {
+  const { id, stations } = await setup();
+  const sid = stations[0].id;
+  const uuid = newTapId();
+  const stock = (jars, cups, tapId = newTapId()) => call('POST', `/events/${id}/stations/${sid}/taps`, { uuid: tapId, type: 'stocked', jars, cups, deviceTs: new Date().toISOString() });
+  assert.equal((await stock(6, 400, uuid)).status, 201);
+  assert.equal((await stock(6, 400, uuid)).status, 200);
+  let s = await station(id, sid);
+  assert.deepEqual([s.stocked, s.stockedJars, s.stockedCups, s.stockCount], [true, 6, 400, 1]);
+  assert.ok(s.stockedAt && s.lastTapAt);
+
+  await stock(8, 350);
+  s = await station(id, sid);
+  assert.deepEqual([s.stockedJars, s.stockedCups, s.stockCount], [8, 350, 2]);
+  assert.equal((await stock(-1, 10)).status, 400);
+  assert.equal(stations[1].stocked, false, 'other stations start not stocked');
+});

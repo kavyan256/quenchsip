@@ -15,6 +15,16 @@
     <p id="loadError" class="error" hidden></p>
 
     <div id="buttons" hidden>
+      <form class="card stock-card" id="stockCard" hidden>
+        <h2>Before the gates open</h2>
+        <p class="small" id="stockHint">Count the full jars at your station, including the one on the tap, and the cups.</p>
+        <div class="stock-row">
+          <label>Full jars <input id="stockJars" name="jars" type="number" inputmode="numeric" min="0" max="200" required placeholder="e.g. 6"></label>
+          <label>Cups <input id="stockCups" name="cups" type="number" inputmode="numeric" min="0" max="100000" required placeholder="e.g. 400"></label>
+        </div>
+        <button type="submit" id="confirmStock">Confirm stock</button>
+      </form>
+
       <button type="button" class="tap tap-swap" data-type="swap">
         <span class="tap-title">Jar swapped</span>
         <span class="tap-hint">Tap each time you put a new jar on</span>
@@ -33,6 +43,12 @@
 
       <h2 class="recent-title">Your taps</h2>
       <ul class="list" id="recent"><li class="small">None yet.</li></ul>
+
+      <details class="stock-done" id="stockDone" hidden>
+        <summary id="stockSummary">Stocked</summary>
+        <p class="small">Count again if jars or cups were added or taken away without a runner.</p>
+        <button type="button" class="ghost" id="recount">Count again</button>
+      </details>
     </div>
   </main>
   <script type="module" src="v.js"></script>

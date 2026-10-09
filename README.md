@@ -15,8 +15,9 @@ Built for Environmental Hacks (WeMakeDevs x AWS), Waste and Energy track, 8-11 O
 - [x] Step 4: offline queue (taps saved on the phone first, sent when there is signal; page opens offline)
 - [x] Step 5: live board (stations needing help first, refreshes every 5 s, warns when it stops updating)
 - [x] Step 6: run-dry projection and quiet detection, computed every 2 minutes (EventBridge Scheduler → Lambda)
+- [x] Step 7: start-of-event stock check (volunteer counts jars and cups; board flags stations not stocked)
 - [ ] Step 0: AWS deploy (SAM: API Gateway + Lambda + DynamoDB; S3 + CloudFront for the site)
-- [ ] Next: start-of-event stock check, then runner dispatch
+- [ ] Next: runner dispatch (Step Functions)
 
 ## Architecture
 | Piece | Local | AWS |
@@ -76,6 +77,7 @@ The plan is computed when the event is read, so it always matches the current st
 | Status | When |
 |---|---|
 | Needs jars now | the volunteer tapped "Last jar" (stays on until a restock) |
+| Not stocked | the volunteer has not counted and confirmed jars and cups (a recount replaces the earlier count) |
 | No taps: check on volunteer | the event is live and nobody has tapped for 1.5× the planned time per jar (low estimate), at least 10 min |
 | Cups low | the volunteer tapped "Cups low" |
 | OK | none of the above |
@@ -84,7 +86,8 @@ Each status has its own colour and its words on the tile, so it does not rely on
 
 **Run-dry projection** (`src/core/projection.js`, shared by the board and the scheduled Lambda so they always agree):
 - Minutes per jar = average of the last 3 gaps between swaps; until a station has two swaps, the plan's busy estimate.
-- Jars left = after "Last jar": 1 − swaps since + jars restocked since; once the start stock is known: stocked + restocked − swapped. Otherwise "not known yet".
+- Jars left = from whichever is newer, the "Last jar" tap (1) or the stock count (counted jars), minus swaps since, plus jars restocked since. Otherwise "not known yet".
+- The jar on the tap is full at the stock count, so the dry time counts from the later of the last swap and the count.
 - Runs dry at = last swap + jars left × minutes per jar.
 - Alert when it runs dry sooner than the runner's trip time + 10 minutes.
 - Quiet when nobody has tapped for 1.5× minutes per jar (at least 10).

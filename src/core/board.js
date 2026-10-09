@@ -4,9 +4,10 @@ import { project, DEFAULT_RUNNER_TRIP_MIN } from './projection.js';
 
 export const STATUS = {
   needs_jars: { rank: 0, label: 'Needs jars now' },
-  quiet: { rank: 1, label: 'No taps: check on volunteer' },
-  cups_low: { rank: 2, label: 'Cups low' },
-  ok: { rank: 3, label: 'OK' },
+  not_stocked: { rank: 1, label: 'Not stocked' },
+  quiet: { rank: 2, label: 'No taps: check on volunteer' },
+  cups_low: { rank: 3, label: 'Cups low' },
+  ok: { rank: 4, label: 'OK' },
 };
 
 const MIN = 60 * 1000;
@@ -21,20 +22,21 @@ export function eventClock(event, now) {
   return { live, hourIndex, known: true, start, end, beforeStart: now < start };
 }
 
-// A flag stays on until a later restock clears it.
-const raisedAfter = (raisedAt, clearedAt) => Boolean(raisedAt) && !(clearedAt && clearedAt > raisedAt);
+// A flag stays on until a later restock or stock count clears it.
+const raisedAfter = (raisedAt, ...clearedAt) => Boolean(raisedAt) && !clearedAt.some((c) => c && c > raisedAt);
 
 export function stationStatus(station, { now, clock, planned, runnerTripMin }) {
   const p = project(station, { now, clock, planned, runnerTripMin });
-  const lastJar = raisedAfter(station.lastJarAt, station.lastRestockAt);
+  const lastJar = raisedAfter(station.lastJarAt, station.lastRestockAt, station.stockedAt);
   const needsJars = lastJar || p.alert;
-  const cupsLow = raisedAfter(station.cupsLowAt, station.lastCupsRestockAt);
+  const cupsLow = raisedAfter(station.cupsLowAt, station.lastCupsRestockAt, station.stockedAt);
+  const notStocked = station.stocked !== true;
 
-  const status = needsJars ? 'needs_jars' : p.quiet ? 'quiet' : cupsLow ? 'cups_low' : 'ok';
+  const status = needsJars ? 'needs_jars' : notStocked ? 'not_stocked' : p.quiet ? 'quiet' : cupsLow ? 'cups_low' : 'ok';
   return {
     status,
     ...STATUS[status],
-    flags: { needsJars, lastJar, runningDry: p.alert, cupsLow, quiet: p.quiet },
+    flags: { needsJars, lastJar, runningDry: p.alert, notStocked, cupsLow, quiet: p.quiet },
     projection: p,
     silentMin: p.silentMin,
     lastTapAt: station.lastTapAt || null,

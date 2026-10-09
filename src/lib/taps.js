@@ -6,16 +6,23 @@ import { db, TABLE } from './db.js';
 import { HttpError } from './events.js';
 import { validateTap } from '../core/tap.js';
 
-const COUNTER = { swap: 'swapCount', last_jar: 'lastJarCount', cups_low: 'cupsLowCount' };
-const LAST_AT = { swap: 'lastSwapAt', last_jar: 'lastJarAt', cups_low: 'cupsLowAt' };
+const COUNTER = { swap: 'swapCount', last_jar: 'lastJarCount', cups_low: 'cupsLowCount', stocked: 'stockCount' };
+const LAST_AT = { swap: 'lastSwapAt', last_jar: 'lastJarAt', cups_low: 'cupsLowAt', stocked: 'stockedAt' };
+
+// Extra station fields per tap type. Swap times feed the projection; a stock count replaces any earlier count.
+// Note: phones send their queued taps oldest first, so "last ... at" fields end on the newest tap.
+function extraUpdate(tap) {
+  if (tap.type === 'swap') return { set: ', swapTimes = list_append(if_not_exists(swapTimes, :empty), :t)', values: { ':t': [tap.tappedAt], ':empty': [] } };
+  if (tap.type === 'stocked') return { set: ', stockedJars = :jars, stockedCups = :cups, stocked = :yes', values: { ':jars': tap.jars, ':cups': tap.cups, ':yes': true } };
+  return { set: '', values: {} };
+}
 
 export async function recordTap(eventId, stationId, input) {
   const tap = validateTap(input);
   const receivedAt = new Date().toISOString();
   const pk = `EVT#${eventId}`;
 
-  // Swap times feed the projection (Step 6), so keep them on the station.
-  const swapPart = tap.type === 'swap' ? ', swapTimes = list_append(if_not_exists(swapTimes, :empty), :t)' : '';
+  const extra = extraUpdate(tap);
   try {
     await db.send(
       new TransactWriteCommand({
@@ -23,7 +30,7 @@ export async function recordTap(eventId, stationId, input) {
           {
             Put: {
               TableName: TABLE,
-              Item: { PK: pk, SK: `TAP#${tap.uuid}`, type: 'tap', tapType: tap.type, stationId, tappedAt: tap.tappedAt, receivedAt, deviceTs: tap.deviceTs, clockTrusted: tap.clockTrusted },
+              Item: { PK: pk, SK: `TAP#${tap.uuid}`, type: 'tap', tapType: tap.type, stationId, tappedAt: tap.tappedAt, receivedAt, deviceTs: tap.deviceTs, clockTrusted: tap.clockTrusted, jars: tap.jars, cups: tap.cups },
               ConditionExpression: 'attribute_not_exists(SK)',
             },
           },
@@ -32,8 +39,8 @@ export async function recordTap(eventId, stationId, input) {
               TableName: TABLE,
               Key: { PK: pk, SK: `STN#${stationId}` },
               ConditionExpression: 'attribute_exists(SK)',
-              UpdateExpression: `ADD ${COUNTER[tap.type]} :one SET ${LAST_AT[tap.type]} = :at, lastTapAt = :at${swapPart}`,
-              ExpressionAttributeValues: { ':one': 1, ':at': tap.tappedAt, ...(tap.type === 'swap' ? { ':t': [tap.tappedAt], ':empty': [] } : {}) },
+              UpdateExpression: `ADD ${COUNTER[tap.type]} :one SET ${LAST_AT[tap.type]} = :at, lastTapAt = :at${extra.set}`,
+              ExpressionAttributeValues: { ':one': 1, ':at': tap.tappedAt, ...extra.values },
             },
           },
         ],

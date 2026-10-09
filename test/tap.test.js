@@ -35,3 +35,13 @@ test('newTapId makes valid, different v4 ids', () => {
   assert.equal(ids.size, 1000);
   for (const id of ids) validateTap({ uuid: id, type: 'swap' }, NOW);
 });
+
+test('stocked tap needs whole-number jar and cup counts', () => {
+  const t = validateTap({ uuid, type: 'stocked', jars: 6, cups: 400, deviceTs: '2026-10-10T17:55:00Z' }, NOW);
+  assert.deepEqual([t.jars, t.cups], [6, 400]);
+  assert.equal(validateTap({ uuid, type: 'stocked', jars: '0', cups: '0' }, NOW).jars, 0);
+  for (const bad of [{}, { jars: 6 }, { jars: -1, cups: 10 }, { jars: 2.5, cups: 10 }, { jars: 201, cups: 10 }, { jars: 6, cups: 'lots' }]) {
+    assert.throws(() => validateTap({ uuid, type: 'stocked', ...bad }, NOW), TapError, JSON.stringify(bad));
+  }
+  assert.equal(validateTap({ uuid, type: 'swap', jars: 6 }, NOW).jars, undefined, 'counts only on stocked taps');
+});

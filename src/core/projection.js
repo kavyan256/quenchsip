@@ -24,19 +24,21 @@ export function swapInterval(swapTimes, plannedLitresPerHour) {
 }
 
 // Full jars still at the station, counting the one on the tap. null = not known.
-//  - after "Last jar": 1, minus swaps since, plus jars restocked since
-//  - else, once the start stock is known: stocked + restocked - swapped
+// Whichever is newer decides:
+//  - "Last jar" tapped: 1, minus swaps since, plus jars restocked since
+//  - stock count (start of event or a recount): counted jars, minus swaps since, plus jars restocked since
 export function jarsLeft(station) {
   const swaps = sortedMs(station.swapTimes);
   const restocks = (station.restocks || []).map((r) => ({ at: Date.parse(r.at), jars: r.jars || 0 }));
-  if (station.lastJarAt) {
-    const since = Date.parse(station.lastJarAt);
-    const left = 1 - swaps.filter((t) => t > since).length + restocks.filter((r) => r.at > since).reduce((a, r) => a + r.jars, 0);
-    return Math.max(0, left);
-  }
-  if (Number.isFinite(station.stockedJars)) {
-    return Math.max(0, station.stockedJars + restocks.reduce((a, r) => a + r.jars, 0) - swaps.length);
-  }
+  const lastJar = station.lastJarAt ? Date.parse(station.lastJarAt) : null;
+  const stockKnown = Number.isFinite(station.stockedJars);
+  const stockAt = stockKnown && station.stockedAt ? Date.parse(station.stockedAt) : -Infinity;
+
+  const fromBase = (base, since) =>
+    Math.max(0, base - swaps.filter((t) => t > since).length + restocks.filter((r) => r.at > since).reduce((a, r) => a + r.jars, 0));
+
+  if (lastJar !== null && (!stockKnown || lastJar >= stockAt)) return fromBase(1, lastJar);
+  if (stockKnown) return fromBase(station.stockedJars, stockAt);
   return null;
 }
 
@@ -46,9 +48,13 @@ export function project(station, { now, clock, planned, runnerTripMin = DEFAULT_
   const { intervalMin, source } = swapInterval(station.swapTimes, planned.highLph);
   const left = jarsLeft(station);
 
-  // The jar in use went on at the last swap, or at the start of the event (or when stocked) if none yet.
+  // The jar in use went on at the last swap, or was full when the station was stocked (whichever is later).
+  // With neither, assume it went on when the event started.
   const swaps = sortedMs(station.swapTimes);
-  const anchor = swaps.length ? swaps[swaps.length - 1] : clock?.start ?? (station.stockedAt ? Date.parse(station.stockedAt) : null);
+  const lastSwap = swaps.length ? swaps[swaps.length - 1] : null;
+  const stockedAt = station.stockedAt ? Date.parse(station.stockedAt) : null;
+  const known = [lastSwap, stockedAt].filter((x) => x !== null);
+  const anchor = known.length ? Math.max(...known) : clock?.start ?? null;
 
   let dryAt = null;
   if (left !== null && intervalMin && anchor !== null) dryAt = anchor + left * intervalMin * MIN;
