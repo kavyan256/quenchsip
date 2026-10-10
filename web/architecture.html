@@ -27,7 +27,7 @@
     <section class="card">
       <svg class="arch" viewBox="0 0 1100 560" role="img" aria-labelledby="archTitle archDesc">
         <title id="archTitle">Quench architecture</title>
-        <desc id="archDesc">Phones reach CloudFront. CloudFront serves the site from S3 and forwards /api to API Gateway and the API Lambda. Taps go through SQS to a consumer Lambda that writes to DynamoDB. EventBridge Scheduler runs the projector Lambda every 2 minutes, which starts Step Functions dispatch executions. All functions log to CloudWatch.</desc>
+        <desc id="archDesc">Phones reach CloudFront. CloudFront serves the site from S3 and forwards /api to API Gateway and the API Lambda. Organisers sign in with Amazon Cognito; the API Lambda checks their token. Taps go through SQS to a consumer Lambda that writes to DynamoDB, where old data expires (TTL). EventBridge Scheduler runs the projector Lambda every 2 minutes, which starts Step Functions dispatch executions. All functions log to CloudWatch.</desc>
         <defs>
           <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0,0 L10,5 L0,10 z"/></marker>
         </defs>
@@ -54,7 +54,8 @@
         <rect class="aws" x="480" y="60" width="200" height="110" rx="12"/>
         <text class="t" x="498" y="92">API Gateway</text>
         <text class="t" x="498" y="118">+ Lambda (API)</text>
-        <text class="s" x="498" y="142">events, taps, runners</text>
+        <text class="s" x="498" y="142">events, taps, runners;</text>
+        <text class="s" x="498" y="162">checks sign-in + QR secrets</text>
 
         <rect class="aws" x="480" y="230" width="200" height="80" rx="12"/>
         <text class="t" x="498" y="262">SQS tap queue</text>
@@ -67,7 +68,7 @@
         <!-- Data -->
         <rect class="aws" x="760" y="230" width="170" height="80" rx="12"/>
         <text class="t" x="778" y="262">DynamoDB</text>
-        <text class="s" x="778" y="286">one table</text>
+        <text class="s" x="778" y="286">one table, TTL cleans up</text>
 
         <!-- Scheduled -->
         <rect class="aws" x="760" y="40" width="300" height="90" rx="12"/>
@@ -79,6 +80,13 @@
         <text class="t" x="778" y="412">Step Functions (dispatch)</text>
         <text class="s" x="778" y="436">assign runner → wait "On my way"</text>
         <text class="s" x="778" y="456">(reassign) → wait "Delivered"</text>
+
+        <!-- Accounts -->
+        <rect class="aws" x="250" y="350" width="170" height="80" rx="12"/>
+        <text class="t" x="268" y="382">Cognito</text>
+        <text class="s" x="268" y="406">organiser sign-in</text>
+        <path class="line" d="M110,190 V390 H245"/>
+        <text class="label" x="118" y="380">sign in</text>
 
         <rect class="box" x="20" y="470" width="400" height="60" rx="12"/>
         <text class="t" x="40" y="506">CloudWatch Logs: every function, every scheduler run</text>
@@ -109,6 +117,8 @@
         <li><strong>Step Functions</strong>: each runner job waits minutes for people; it reassigns when a runner does not respond and closes jobs nobody confirms.</li>
         <li><strong>SQS</strong>: a burst of taps at the headliner never waits on database writes; taps that keep failing go to a dead-letter queue instead of being lost.</li>
         <li><strong>DynamoDB</strong>: conditional writes make every tap count exactly once and stop two runners taking the same job.</li>
+        <li><strong>Cognito</strong>: organisers sign in to save and run events (planning and viewing stay open). The API checks the token itself; volunteers and runners never sign in, they scan a QR code.</li>
+        <li><strong>DynamoDB TTL</strong>: every event's data deletes itself 90 days after the event (a day for the shared demo account).</li>
         <li><strong>CloudFront + S3</strong>: one https address, so the volunteer page works offline (service worker) and phones need no setup.</li>
       </ul>
     </section>

@@ -27,7 +27,7 @@ export const DEFAULTS = {
   noise: 0.25, // demand varies +-25% hour to hour
   startJars: 5, // full jars at each station at the start, including the one on the tap
   runners: 3,
-  tripMin: 8, // one way from the store to a station
+  tripMin: 8, // one way from the store to a station (a station's own tripMin overrides it, e.g. from the map)
   jarsPerTrip: 6, // WhatsApp: the lead sends a full trolley every time (Quench uses the app's own rule, see send())
   readDelayMin: 4, // WhatsApp: time until the lead reads and acts on a message
   lastJarMessageRate: 0.6, // WhatsApp: share of "last jar" moments that someone messages about
@@ -76,25 +76,30 @@ export function simulate(policy, overrides = {}) {
     dryMin: 0,
     served: 0,
     openJob: false,
+    alert: false, // Quench: the app predicts this station runs dry before a runner could get there
     // What the app knows (only what volunteers tapped):
     app: { stocked: true, stockedJars: cfg.startJars, stockedAt: iso(-1), swapTimes: [], restocks: [], lastJarAt: null, lastTapAt: iso(-1) },
   }));
   const runners = Array.from({ length: cfg.runners }, () => ({ freeAt: 0 }));
+  const tripOf = (i) => cfg.stations[i].tripMin ?? cfg.tripMin;
   const deliveries = []; // { station, at, jars }
+  const trips = []; // { runner, station, leave, arrive, back, jars } for drawing runners on the map
   const inbox = []; // WhatsApp messages { station, readAt }
   const frames = [];
   let jobs = 0;
 
   const projectAt = (i, t) =>
-    project(st[i].app, { now: T0 + t * 60000, clock: { live: true, start: T0 }, planned: { highLph: plannedLph[i] * 1.2, lowLph: plannedLph[i] * 0.8 }, runnerTripMin: cfg.tripMin });
+    project(st[i].app, { now: T0 + t * 60000, clock: { live: true, start: T0 }, planned: { highLph: plannedLph[i] * 1.2, lowLph: plannedLph[i] * 0.8 }, runnerTripMin: tripOf(i) });
   const send = (i, t) => {
     const r = runners.find((x) => x.freeAt <= t);
     if (!r || st[i].openJob) return false;
-    r.freeAt = t + 2 * cfg.tripMin;
+    const trip = tripOf(i);
+    r.freeAt = t + 2 * trip;
     st[i].openJob = true;
     // Quench sends what the real app would (src/core/dispatch.js jarsToSend).
     const jars = policy === 'quench' ? jarsToSend({ ...projectAt(i, t), minutesLeft: cfg.minutes - t }) : cfg.jarsPerTrip;
-    deliveries.push({ station: i, at: t + cfg.tripMin, jars });
+    deliveries.push({ station: i, at: t + trip, jars });
+    trips.push({ runner: runners.indexOf(r), station: i, leave: t, arrive: t + trip, back: t + 2 * trip, jars });
     jobs++;
     return true;
   };
@@ -167,6 +172,7 @@ export function simulate(policy, overrides = {}) {
         .map((s, i) => {
           const p = projectAt(i, t);
           const lastJar = Boolean(s.app.lastJarAt) && !s.app.restocks.some((r) => r.at > s.app.lastJarAt);
+          s.alert = Boolean(p.alert);
           return { i, need: p.alert || p.quiet || lastJar || s.dry, dryAt: p.dryAt ? Date.parse(p.dryAt) : Infinity };
         })
         .filter((a) => a.need && !st[a.i].openJob)
@@ -177,7 +183,7 @@ export function simulate(policy, overrides = {}) {
     frames.push({
       t,
       dryMinutes: st.reduce((a, s) => a + s.dryMin, 0),
-      stations: st.map((s) => ({ level: Math.max(0, s.level) / JAR_LITRES, spare: s.spare, dry: s.dry, job: s.openJob })),
+      stations: st.map((s, i) => ({ level: Math.max(0, s.level) / JAR_LITRES, spare: s.spare, dry: s.dry, job: s.openJob, alert: s.alert, lph: demand[i][t] * 60 })),
     });
   }
 
@@ -190,6 +196,7 @@ export function simulate(policy, overrides = {}) {
     jobs,
     perStation: st.map((s) => ({ name: s.name, dryMin: s.dryMin })),
     frames,
+    trips,
     config: cfg,
   };
 }

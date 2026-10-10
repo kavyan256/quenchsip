@@ -1,6 +1,6 @@
 // Service worker: keeps the volunteer page's files on the phone so it opens without signal.
 // API calls (/api/* or another origin) are never cached; taps are queued in IndexedDB by the page.
-const CACHE = 'quench-v5';
+const CACHE = 'quench-v6';
 const SHELL = ['v.html', 'v.js', 'api.js', 'queue.js', 'i18n.js', 'art.js', 'style.css', 'fonts/nunito-latin.woff2', 'core/tap.js', 'core/sync.js'];
 
 self.addEventListener('install', (event) => {

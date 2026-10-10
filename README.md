@@ -10,7 +10,7 @@ Built for Environmental Hacks (WeMakeDevs x AWS), Waste and Energy track, 8-11 O
 
 **Live:** https://quench.kavyan.dev (AWS, ap-south-1 Mumbai; also https://d3116g1xm6u7mg.cloudfront.net)
 
-**Tests:** 70 unit · 45 integration (API against DynamoDB Local) · 32 browser scenarios with 117 assertions (headless Chrome), run locally and against the deployed AWS site (31 there; one needs a local server) · load test: 500 taps in 30 s on AWS, 0 lost. How to run them: [Tests](#tests).
+**Tests:** 72 unit · 45 integration (API against DynamoDB Local) · 32 browser scenarios with 117 assertions (headless Chrome), run locally and against the deployed AWS site (31 there; one needs a local server) · load test: 500 taps in 30 s on AWS, 0 lost. How to run them: [Tests](#tests).
 
 ## Screenshots
 | Set up: the water plan | Volunteer: one step at a time | Runner: a job |
@@ -39,7 +39,7 @@ Try it yourself: open the [live site](https://quench.kavyan.dev), set up an even
 | "Which station runs dry next?" even when nobody is tapping | **EventBridge Scheduler → Lambda** | Every 2 minutes a Lambda projects each live station's run-dry time and flags quiet stations. There's no server to keep alive, and the board and the Lambda share the same code (`src/core/projection.js`). |
 | A runner ignores a job | **Step Functions (Standard)** | Each job is one execution: assign → wait for "On my way" (3 min, else reassign) → wait for "Delivered" (45 min). The waits use task tokens, so nothing polls and nothing runs while waiting. A runner's tap resumes the execution. |
 | Store events, stations, taps | **DynamoDB, on demand** | One table, one partition per event (`PK`/`SK`), so an event is one query. Live events are listed through `PK = EVENTS`, never a table scan. On-demand billing means an idle app costs nothing. |
-| Nobody floods the open routes | **API Gateway throttling** | Anyone can create an event, so the API is capped at 50 requests a second (bursts of 100). The tested peak, 500 taps in 30 s, is about 17 a second. |
+| Nobody floods the open routes | **API Gateway throttling** | The open routes (planning, viewing, volunteer taps) need no account, so the API is capped at 50 requests a second (bursts of 100). The tested peak, 500 taps in 30 s, is about 17 a second. |
 | Organiser accounts, without running a login server | **Amazon Cognito** | Email + password, email verification, refresh tokens. The API checks the ID token's signature against the pool's public keys; no SDK needed in the browser or the Lambda. |
 | Old data cleans itself up | **DynamoDB TTL** | Every item carries `expiresAt`: 90 days after the event ends (a day for the demo account). |
 | Website and API on one address | **S3 + CloudFront** | The site comes from a private S3 bucket (Origin Access Control); `/api/*` is forwarded to API Gateway. One https address, so phones need no CORS preflight and service workers work. |
@@ -143,7 +143,7 @@ The site and the API share one CloudFront address: the site from S3, and `/api/*
 
 ## Tests
 ```bash
-npm test             # unit (70): plan maths, projection, dispatch, validation, key hashing
+npm test             # unit (72): plan maths, projection, dispatch, validation, key hashing
 npm run test:int     # integration (45): API handler against DynamoDB Local
 npm run test:e2e     # browser (32 scenarios, 117 assertions): plan, PIN, QR, taps, offline, Hindi, board, stock, dispatch, summary (needs api + serve running)
 node scripts/load-test.mjs https://<site>/api 500 30   # 500 taps in 30 s, checks none are lost
@@ -206,15 +206,19 @@ assign the free runner who has waited longest. The state machine starts only whe
 
 **Simulation** (`demo.html`, `src/core/sim.js`): the same 3-hour evening minute by minute, with a WhatsApp group (volunteers message on last jar sometimes and when empty; the lead reads after a delay) and with Quench (real projection code, missed taps modelled). Quench sends what the app would (its real jars-per-trip rule); the WhatsApp lead sends a full 6-jar load every time. Over 20 evenings at 90% taps: typical group 55 vs Quench 4 dry station-minutes; a very disciplined group 9 vs 3. At 70% taps the very disciplined group is about even (9 vs 10). These are model results, not event data.
 
+The page shows both evenings as a 2D map: a storeroom in the middle, stations around it draining as people drink, runners walking out with jars, and a dashed ring where Quench predicts a station will run dry. Drag a station and its walk time changes with the distance (by default every station is 8 minutes away, which gives the numbers above); both evenings rerun with the new layout. `demo.html?t=118` opens it at a given minute.
+
 The simulation also changed the product: with the old rule (top a station up to about 1 hour, at least 1 jar) Quench lost to the disciplined group in every run, because at the peak runners spent their time carrying 1-2 jars. Runner time, not jars, is the scarce thing, so a delivery now covers about 2 hours at the station's rate, 2 to 6 jars. It does not subtract the jars the app thinks are left (a missed tap makes that number too high), and near the end it sends only what's needed until closing plus 45 minutes. This rule was the most robust across 2-4 runners, 5-12 minute walks and 70-90% tapping.
 
 ## API
 | Method | Path | Who |
 |---|---|---|
 | GET | `/health` | anyone |
-| POST | `/events` | organiser (returns the organiser key for their private link) |
+| GET | `/config` | anyone: which sign-in to use (the Cognito client id) |
+| POST | `/events` | **signed-in organiser** (Cognito ID token); returns the organiser key for the private co-organiser link. 401 without sign-in, 429 over the account's cap |
+| GET | `/me/events` | signed-in organiser: their events, on any device |
 | GET | `/events/{id}` | anyone with the link; with `x-organiser-key` it also returns each station's and runner's link token |
-| PATCH, POST, DELETE | `/events/{id}`, `/events/{id}/stations[/{sid}]`, `/events/{id}/runners[/{rid}]` | organiser (`x-organiser-key`, or `x-organiser-pin` for older events) |
+| PATCH, POST, DELETE | `/events/{id}`, `/events/{id}/stations[/{sid}]`, `/events/{id}/runners[/{rid}]` | the event's owner (signed in), or a co-organiser with the private link (`x-organiser-key`; `x-organiser-pin` for older events) |
 | GET | `/events/{id}/stations/{sid}/link` | volunteer: checks their link on page load |
 | POST | `/events/{id}/stations/{sid}/taps` | volunteer (`x-access-token` from the station QR link); 202 when queued on AWS |
 | GET | `/events/{id}/summary` | anyone with the link |

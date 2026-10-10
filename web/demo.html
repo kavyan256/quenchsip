@@ -12,7 +12,7 @@
   <main class="board">
     <p class="no-print"><a href="index.html">← Quench</a></p>
     <h1>Same evening, two ways of sending runners</h1>
-    <p class="lead"><strong>Simulation, not real event data.</strong> 8 water stations, a 3-hour evening with a headliner from 19:30 to 20:30, 3 runners. Quench uses its real run-dry code; WhatsApp is a lead reading volunteers' messages.</p>
+    <p class="lead"><strong>Simulation, not real event data.</strong> 8 water stations around one storeroom, a 3-hour evening with a headliner from 19:30 to 20:30, 3 runners. Quench uses its real run-dry code; WhatsApp is a lead reading volunteers' messages.</p>
 
     <section class="card">
       <div class="grid">
@@ -36,21 +36,39 @@
           <input id="seed" type="number" min="1" max="999" value="1">
         </label>
       </div>
-      <p><button type="button" id="play">▶ Play the evening (30 s)</button> <span class="small" id="clock"></span></p>
+      <div class="sim-timeline">
+        <button type="button" id="play">▶ Play</button>
+        <input type="range" id="scrub" min="0" max="179" value="179" aria-label="Time of the evening">
+        <span class="small" id="clock"></span>
+      </div>
+      <p class="sim-hint">✋ <strong>Drag a station</strong> to move it. Further from the storeroom means a longer walk for runners. Both maps use the same layout. <button type="button" class="sim-reset" id="resetMap" hidden>Reset map</button></p>
     </section>
 
-    <div class="sim-grid">
-      <section class="card">
-        <h2>WhatsApp group</h2>
-        <p class="sim-counter" id="dryW">0 dry minutes</p>
-        <div class="sim-tiles" id="tilesW"></div>
+    <div class="map-switch" role="tablist" aria-label="Which map">
+      <button type="button" role="tab" id="showW" aria-selected="false">WhatsApp group</button>
+      <button type="button" role="tab" id="showQ" aria-selected="true">Quench</button>
+    </div>
+    <div class="map-grid" id="maps" data-show="quench">
+      <section class="card map-card map-w">
+        <h2>WhatsApp group <span class="map-dry" id="dryW">0 dry min</span></h2>
+        <svg class="sim-map" id="mapW" viewBox="85 30 550 530" role="img" aria-label="Map of the WhatsApp group evening"></svg>
       </section>
-      <section class="card">
-        <h2>Quench</h2>
-        <p class="sim-counter" id="dryQ">0 dry minutes</p>
-        <div class="sim-tiles" id="tilesQ"></div>
+      <section class="card map-card map-q">
+        <h2>Quench <span class="map-dry" id="dryQ">0 dry min</span></h2>
+        <svg class="sim-map" id="mapQ" viewBox="85 30 550 530" role="img" aria-label="Map of the Quench evening"></svg>
       </section>
     </div>
+
+    <section class="card">
+      <div class="map-legend">
+        <span><svg width="18" height="18" aria-hidden="true"><rect class="m-store" x="1" y="1" width="16" height="16" rx="3"/></svg> Storeroom</span>
+        <span><svg width="18" height="18" aria-hidden="true"><circle class="m-st" cx="9" cy="9" r="7"/><rect class="m-water" x="2" y="9" width="14" height="7"/></svg> Station: water left in the jar on the tap</span>
+        <span><svg width="22" height="12" aria-hidden="true"><rect class="m-jar" x="1" y="1" width="6" height="10" rx="1.5"/><rect class="m-jar" x="10" y="1" width="6" height="10" rx="1.5"/></svg> Spare jars</span>
+        <span><svg width="18" height="18" aria-hidden="true"><rect x="2" y="2" width="14" height="14" rx="3" fill="#e8590c"/></svg> Runner: number = jars carried, ↩ = walking back</span>
+        <span><svg width="22" height="22" aria-hidden="true"><circle class="m-alert" cx="11" cy="11" r="9"/></svg> Quench predicts it runs dry soon</span>
+        <span><svg width="30" height="10" aria-hidden="true"><circle class="m-person" cx="5" cy="5" r="3"/><circle class="m-person" cx="15" cy="5" r="3"/><circle class="m-person waiting" cx="25" cy="5" r="3"/></svg> People, red = waiting for water</span>
+      </div>
+    </section>
 
     <section class="card">
       <h2>Over 20 different evenings (same settings)</h2>
