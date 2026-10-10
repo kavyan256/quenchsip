@@ -19,6 +19,8 @@ const TAP_KEYS = { swap: 'jarSwapped', last_jar: 'lastJar', cups_low: 'cupsLow',
 const tapLabel = (x) => (x.type === 'stocked' ? t('stockedTap', { jars: x.jars, cups: x.cups }) : t(TAP_KEYS[x.type]));
 let stationInfo = null;
 let recounting = false;
+// "Skip, count later": the buttons show without a stock count (remembered for this visit only).
+let skipped = false;
 
 function feedback(kind, html) {
   $('feedback').className = `feedback ${kind}`;
@@ -45,8 +47,13 @@ function renderStock(taps) {
     : stationInfo?.stocked
       ? { jars: stationInfo.stockedJars, cups: stationInfo.stockedCups, at: stationInfo.stockedAt }
       : null;
-  $('stockCard').hidden = Boolean(stock) && !recounting;
+  // One thing at a time: the count first (unless skipped), then the buttons.
+  const counting = (!stock && !skipped) || recounting;
+  $('stockCard').hidden = !counting;
+  $('skipStock').hidden = Boolean(stock);
+  $('taps').hidden = counting;
   $('stockDone').hidden = !stock || recounting;
+  $('countLater').hidden = Boolean(stock) || counting;
   if (stock) $('stockSummary').textContent = t('stockedAt', { time: time(stock.at), jars: stock.jars, cups: stock.cups });
   $('stockHint').textContent = stationInfo?.plannedJars ? t('countHintPlan', { jars: stationInfo.plannedJars }) : t('countHint');
 }
@@ -118,6 +125,17 @@ $('stockCard').addEventListener('submit', async (e) => {
   flush();
 });
 
+$('skipStock').addEventListener('click', async () => {
+  skipped = true;
+  await render();
+});
+
+$('countNow').addEventListener('click', async () => {
+  skipped = false;
+  await render();
+  $('stockJars').focus();
+});
+
 $('recount').addEventListener('click', async () => {
   recounting = true;
   $('stockJars').value = '';
@@ -184,11 +202,13 @@ async function start() {
     $('introOk').onclick = () => {
       $('intro').hidden = true;
       try { localStorage.setItem(introKey, '1'); } catch {}
+      $('buttons').hidden = false;
       $('station').scrollIntoView({ behavior: 'smooth' });
     };
   }
   if (info.offline) feedback('pending', escape(t('noSignal')));
-  $('buttons').hidden = false;
+  // First visit: the intro alone; the count and buttons come after "Got it".
+  $('buttons').hidden = !seen;
   await pruneSent(eventId, stationId);
   await render();
   flush();

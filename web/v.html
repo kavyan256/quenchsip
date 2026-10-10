@@ -36,7 +36,17 @@
           <label><span data-i18n="cups">Cups</span> <input id="stockCups" name="cups" type="number" inputmode="numeric" min="0" max="100000" required placeholder="e.g. 400"></label>
         </div>
         <button type="submit" id="confirmStock" data-i18n="confirmStock">Confirm stock</button>
+        <button type="button" class="link-btn" id="skipStock" data-i18n="skipCount">Skip, count later</button>
       </form>
+
+      <div id="feedback" class="feedback" role="status" aria-live="polite"></div>
+
+      <div id="taps">
+      <section class="card not-counted-card" id="countLater" hidden>
+        <div><strong data-i18n="notCounted">Jars and cups not counted yet</strong>
+        <p class="small" data-i18n="notCountedHint">Count when you can, so the organiser knows your stock.</p></div>
+        <button type="button" class="ghost small-btn" id="countNow" data-i18n="countNow">Count now</button>
+      </section>
 
       <button type="button" class="tap tap-swap" data-type="swap">
         <span class="tap-badge"><span class="art" data-art="swap"></span></span>
@@ -53,8 +63,6 @@
         <span class="tap-text"><span class="tap-title" data-i18n="cupsLow">Cups low</span></span>
       </button>
 
-      <div id="feedback" class="feedback" role="status" aria-live="polite"></div>
-
       <p id="syncState" class="sync" aria-live="polite"></p>
 
       <h2 class="recent-title" data-i18n="yourTaps">Your taps</h2>
@@ -65,6 +73,8 @@
         <p class="small" data-i18n="recountHint">Count again if jars or cups were added or taken away without a runner.</p>
         <button type="button" class="ghost" id="recount" data-i18n="countAgain">Count again</button>
       </details>
+
+      </div>
     </div>
   </main>
   <script type="module" src="v.js"></script>

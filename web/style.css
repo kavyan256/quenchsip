@@ -697,3 +697,7 @@ legend.ask + * { margin-top: 0; }
 .not-counted { display: flex; align-items: center; gap: var(--s3); background: var(--st-red-bg); border: 2px dashed var(--st-red); margin-bottom: var(--s3); }
 .not-counted-title { margin: 0; font-size: 1.1rem; font-weight: 800; color: var(--st-red); }
 .not-counted .small { margin: 4px 0 0; color: var(--text); }
+.not-counted-card { display: flex; align-items: center; justify-content: space-between; gap: var(--s3); background: var(--warn-bg); color: var(--warn-text); border: 1px solid var(--warn-text); }
+.not-counted-card p { margin: 2px 0 0; color: inherit; }
+.not-counted-card button { flex: none; }
+.stock-card .link-btn { margin-top: var(--s3); }

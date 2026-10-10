@@ -192,14 +192,21 @@ try {
   const first = await open(cards[0].url);
   await waitFor(first, `!document.getElementById('intro').hidden`);
   assert.match(await first.ev(`document.getElementById('introTitle').textContent`), new RegExp(cards[0].name));
+  assert.equal(await first.ev(`document.getElementById('buttons').hidden`), true, 'first visit: only the intro');
   await first.ev(`document.getElementById('introOk').click()`);
   assert.equal(await first.ev(`document.getElementById('intro').hidden`), true);
+  await waitFor(first, `!document.getElementById('stockCard').hidden`);
+  assert.equal(await first.ev(`document.getElementById('taps').hidden`), true, 'then only the stock count');
+  await first.ev(`document.getElementById('skipStock').click()`);
+  await waitFor(first, `!document.getElementById('taps').hidden`);
+  assert.equal(await first.ev(`document.getElementById('stockCard').hidden`), true, 'skipping shows the buttons');
+  assert.equal(await first.ev(`document.getElementById('countLater').hidden`), false, 'with a "not counted yet" reminder');
   await first.ev('location.reload()');
   await sleep(1500);
   await waitFor(first, `document.getElementById('station').textContent === ${JSON.stringify(cards[0].name)}`);
   assert.equal(await first.ev(`document.getElementById('intro').hidden`), true, 'not shown again');
   await first.close();
-  step('volunteer sees a 3-line "what to do" card once, then never again');
+  step('volunteer: intro once, then the stock count, then the buttons (count can be skipped)');
 
   // Hub Live tab before the start: one calm "waiting for the count" card, no alarms.
   const liveTab = await open(`${WEB}/event.html?e=${eventId}&tab=live`);
@@ -308,6 +315,8 @@ try {
     await sleep(2000);
     assert.equal(await sw.ev(`document.getElementById('station').textContent`), cards[1].name);
     assert.match(await sw.ev(`document.getElementById('feedback').textContent`), /No signal right now/);
+    // A new address has its own storage, so the intro shows first here.
+    await sw.ev(`document.getElementById('intro').hidden || document.getElementById('introOk').click()`);
     assert.equal(await sw.ev(`document.getElementById('buttons').hidden`), false);
     await sw.close();
     step('page opens with no signal (service worker + saved station name)');
