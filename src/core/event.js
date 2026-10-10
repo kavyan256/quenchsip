@@ -128,9 +128,17 @@ export function validateEventPatch(p) {
   }
   if (p?.volunteerCount !== undefined) out.volunteerCount = number(p.volunteerCount, 'Volunteers', 0, 10000, { integer: true });
   for (const k of ['jarSupplier', 'signal']) if (p?.[k] !== undefined) out[k] = p[k] === true;
+  // A new start time comes with its local start hour (the browser knows the time zone, the server does not).
+  if (p?.startsAt !== undefined) {
+    const t = Date.parse(p.startsAt);
+    if (!Number.isFinite(t)) fail('Event date and start time are not valid.');
+    out.startsAt = new Date(t).toISOString();
+    out.startHour = number(p.startHour, 'Start hour', 0, 23, { integer: true });
+  }
   if (p?.setup !== undefined) {
-    out.setup = {};
-    for (const k of ['ordered', 'linksShared']) if (p.setup?.[k] !== undefined) out.setup[k] = p.setup[k] === true;
+    const setup = {};
+    for (const k of ['ordered', 'linksShared']) if (p.setup?.[k] !== undefined) setup[k] = p.setup[k] === true;
+    if (Object.keys(setup).length) out.setup = setup; // an empty setup changes nothing
   }
   if (!Object.keys(out).length) fail('Nothing to change.');
   return out;

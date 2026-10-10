@@ -127,6 +127,13 @@ try {
   await waitFor(page, `document.getElementById('stationsLine').textContent.startsWith('4 stations')`, 15000);
   assert.match(await page.ev(`document.getElementById('progressText').textContent`), /1 of 4 done/);
   assert.match(await page.ev(`document.getElementById('subtitle').textContent`), /^\w{3}, \d{1,2} \w{3} · \d{1,2}:\d{2} (am|pm)–\d{1,2}:\d{2} (am|pm) · 2,000 people$/, 'same time format as set up');
+  // Wrong time? Change it in Fine-tune; the header follows.
+  const subtitleBefore = await page.ev(`document.getElementById('subtitle').textContent`);
+  await page.ev(`{ document.getElementById('fineTune').open = true; const d = new Date(Date.now() + 86400000); d.setHours(10, 30, 0, 0);
+    const i = document.getElementById('startsAt'); i.value = new Date(d - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16); i.dispatchEvent(new Event('change')); }`);
+  await waitFor(page, `document.getElementById('subtitle').textContent.includes('10:30 am')`);
+  assert.notEqual(await page.ev(`document.getElementById('subtitle').textContent`), subtitleBefore);
+  assert.equal(await page.ev(`document.getElementById('fineStatus').textContent`), 'Saved ✓');
   assert.match(await page.ev(`document.querySelector('#step2 .cup-line').textContent`), /kulhad, bagasse, areca leaf or paper without plastic lining/);
   assert.equal(await page.ev(sellerLinks('#step2')), sellers, 'the hub links to the same sellers');
   step('set up, one question per screen (back works), opens the hub: 4 stations, checklist 1 of 4');

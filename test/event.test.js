@@ -85,3 +85,8 @@ test('edits: only known fields, at least one, checked ranges', () => {
   assert.throws(() => validateEventPatch({ runnerTripMin: 0 }), /walking time/);
   assert.throws(() => validateEventPatch({ litresPerPersonHr: { low: 1, high: 0.5 } }), /Low water/);
 });
+
+test('an empty setup patch is "nothing to change" (400), not a database error', () => {
+  assert.throws(() => validateEventPatch({ setup: {} }), /Nothing to change/);
+  assert.deepEqual(validateEventPatch({ setup: { ordered: true } }), { setup: { ordered: true } });
+});

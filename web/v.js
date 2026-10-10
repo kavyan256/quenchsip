@@ -55,6 +55,9 @@ function renderStock(taps) {
   $('stockDone').hidden = !stock || recounting;
   $('countLater').hidden = Boolean(stock) || counting;
   if (stock) $('stockSummary').textContent = t('stockedAt', { time: time(stock.at), jars: stock.jars, cups: stock.cups });
+  // Before the start it is the start-of-event count; later it is a recount.
+  const beforeStart = !stationInfo?.startsAt || Date.now() < Date.parse(stationInfo.startsAt);
+  $('stockTitle').textContent = t(beforeStart ? 'beforeGates' : 'countStock');
   $('stockHint').textContent = stationInfo?.plannedJars ? t('countHintPlan', { jars: stationInfo.plannedJars }) : t('countHint');
 }
 
@@ -171,6 +174,7 @@ async function loadStation() {
       stockedJars: station.stockedJars,
       stockedCups: station.stockedCups,
       stockedAt: station.stockedAt,
+      startsAt: event.startsAt || null,
       plannedJars: planned ? `${planned.jarsLow}–${planned.jarsHigh}` : null,
     };
     try { localStorage.setItem(cacheKey, JSON.stringify(info)); } catch {}

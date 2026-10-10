@@ -103,3 +103,22 @@ test('stocked tap saves the counts; a recount replaces them; a retry counts once
   assert.equal((await stock(-1, 10)).status, 400);
   assert.equal(stations[1].stocked, false, 'other stations start not stocked');
 });
+
+test('taps that arrive out of order (SQS does not keep order) never move the station back in time', async () => {
+  const { id, stations } = await setup();
+  const sid = stations[0].id;
+  const at = (minAgo) => new Date(Date.now() - minAgo * 60000).toISOString();
+  const send = (body) => call('POST', `/events/${id}/stations/${sid}/taps`, { uuid: newTapId(), ...body });
+  // The newer recount and "cups low" arrive first, the older ones after.
+  await send({ type: 'stocked', jars: 9, cups: 300, deviceTs: at(5) });
+  await send({ type: 'cups_low', deviceTs: at(2) });
+  await send({ type: 'stocked', jars: 3, cups: 100, deviceTs: at(20) });
+  await send({ type: 'cups_low', deviceTs: at(15) });
+  const s = await station(id, sid);
+  assert.equal(s.stockedJars, 9, 'the newer count wins');
+  assert.equal(s.stockedCups, 300);
+  assert.ok(Date.parse(s.stockedAt) > Date.parse(at(6)), 'stockedAt is the newer count');
+  assert.ok(Date.parse(s.cupsLowAt) > Date.parse(at(3)), 'cupsLowAt stays on the newer tap');
+  assert.ok(Date.parse(s.lastTapAt) > Date.parse(at(3)), 'lastTapAt stays on the newest tap');
+  assert.equal(s.stockCount, 2, 'both taps still counted');
+});

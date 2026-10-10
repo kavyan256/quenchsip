@@ -139,3 +139,25 @@ test('task token is saved for the state machine and never shown', async () => {
   assert.deepEqual(await dispatcher({ action: 'wait_ack', eventId: id, jobId: job.id, token: 'test-token' }), { saved: true });
   assert.equal(JSON.stringify(await get(id)).includes('test-token'), false);
 });
+
+test('a runner or station with an open job cannot be removed until it is delivered', async () => {
+  const { id, sid, rid } = await setup();
+  await lastJar(id, sid('North'));
+  const job = (await get(id)).jobs[0];
+  const orgDelete = async (path) => {
+    const res = await handler({ rawPath: path, requestContext: { http: { method: 'DELETE' } }, headers: { 'x-organiser-pin': '2468' } });
+    return { status: res.statusCode, data: JSON.parse(res.body) };
+  };
+
+  const busyRunner = await orgDelete( `/events/${id}/runners/${rid('Asha')}`);
+  assert.equal(busyRunner.status, 409);
+  assert.match(busyRunner.data.error, /Asha has a job in progress/);
+  const busyStation = await orgDelete( `/events/${id}/stations/${sid('North')}`);
+  assert.equal(busyStation.status, 409);
+  assert.match(busyStation.data.error, /North has a runner job open/);
+  assert.equal((await orgDelete( `/events/${id}/runners/${rid('Ravi')}`)).status, 200, 'a free runner can go');
+
+  assert.equal((await call('POST', `/events/${id}/jobs/${job.id}/done`, { runnerId: rid('Asha') })).status, 200);
+  assert.equal((await orgDelete( `/events/${id}/runners/${rid('Asha')}`)).status, 200, 'after delivery she can be removed');
+  assert.equal((await orgDelete( `/events/${id}/stations/${sid('North')}`)).status, 200);
+});

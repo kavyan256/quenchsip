@@ -99,6 +99,8 @@ function renderSetup() {
 
   // Fine-tune (only fill fields the organiser is not editing right now).
   const set = (id, v) => { if (document.activeElement !== $(id)) $(id).value = v; };
+  // datetime-local wants local time without a zone: "2026-10-10T18:00".
+  if (event.startsAt) { const d = new Date(event.startsAt); set('startsAt', new Date(d - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16)); }
   set('runnerTrip', event.runnerTripMin ?? 10);
   set('lphLow', event.litresPerPersonHr.low);
   set('lphHigh', event.litresPerPersonHr.high);
@@ -209,6 +211,10 @@ $('copyLink').addEventListener('click', async () => {
 $('sendLink').addEventListener('click', () => shareText(`My Quench organiser link for ${data.event.name} (keep it private): ${organiserLink(eventId, key)}`, 'Quench organiser link'));
 
 // Fine-tune: save on change.
+$('startsAt').addEventListener('change', () => {
+  const d = new Date($('startsAt').value); // read as local time
+  if (Number.isFinite(d.getTime())) saveEvent({ startsAt: d.toISOString(), startHour: d.getHours() }, 'fineStatus');
+});
 $('runnerTrip').addEventListener('change', () => saveEvent({ runnerTripMin: Number($('runnerTrip').value) }, 'fineStatus'));
 for (const id of ['lphLow', 'lphHigh']) $(id).addEventListener('change', () => saveEvent({ litresPerPersonHr: { low: Number($('lphLow').value), high: Number($('lphHigh').value) } }, 'fineStatus'));
 $('hotDay').addEventListener('change', () => saveEvent({ heatFactor: $('hotDay').checked ? 1.3 : 1 }, 'fineStatus'));

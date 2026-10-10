@@ -69,7 +69,9 @@ export function summarize({ event, stations, jobs = [], taps = [] }) {
 // CSV of the per-station table, for spreadsheets.
 export function stationsCsv(summary) {
   const header = ['Station', 'Zone', 'Jars swapped', 'Litres', 'Dry minutes', 'Stocked before start', 'Last-jar taps', 'Cups-low taps', 'Restocks', 'Jars delivered'];
-  const esc = (v) => (/[",\n]/.test(String(v)) ? `"${String(v).replace(/"/g, '""')}"` : String(v));
+  // A name starting with = + - @ would run as a formula in Excel, so it is prefixed with ' (shown as text).
+  const safe = (v) => (typeof v === 'string' && /^[=+\-@\t\r]/.test(v) ? `'${v}` : String(v));
+  const esc = (v) => { const x = safe(v); return /[",\n]/.test(x) ? `"${x.replace(/"/g, '""')}"` : x; };
   const lines = summary.stations.map((r) => [r.name, r.zone, r.swaps, r.litres, r.dryMinutes, r.stockedBeforeStart ? 'yes' : 'no', r.lastJarTaps, r.cupsLowTaps, r.restocks, r.jarsDelivered]);
   return [header, ...lines].map((row) => row.map(esc).join(',')).join('\n');
 }

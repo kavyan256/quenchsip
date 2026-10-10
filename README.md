@@ -10,7 +10,7 @@ Built for Environmental Hacks (WeMakeDevs x AWS), Waste and Energy track, 8-11 O
 
 **Live:** https://d3116g1xm6u7mg.cloudfront.net (AWS, ap-south-1 Mumbai)
 
-**Tests:** 68 unit · 37 integration (API against DynamoDB Local) · 31 browser checks (headless Chrome), which pass both locally and against the deployed AWS site · load test: 500 taps in 30 s on AWS, 0 lost. How to run them: [Tests](#tests).
+**Tests:** 70 unit · 40 integration (API against DynamoDB Local) · 31 browser scenarios with 99 assertions (headless Chrome), run locally and against the deployed AWS site (30 there; one needs a local server) · load test: 500 taps in 30 s on AWS, 0 lost. How to run them: [Tests](#tests).
 
 ## Screenshots
 | Set up: the water plan | Volunteer: one step at a time | Runner: a job |
@@ -35,10 +35,11 @@ Try it yourself: open the [live site](https://d3116g1xm6u7mg.cloudfront.net), se
 | Need | Service | Why this one |
 |---|---|---|
 | Volunteers tap at the peak, all at once | **API Gateway → SQS → Lambda** | The API only checks the tap and queues it (202), so a burst never waits on database writes. A consumer Lambda saves taps in batches of 10. Measured on AWS: 500 taps in 30 s, 0 lost. |
-| A tap that cannot be saved must not vanish | **SQS dead-letter queue** | After 3 failed tries a tap moves to a dead-letter queue and is kept 14 days. `ReportBatchItemFailures` retries only the failed taps in a batch, not the whole batch. |
+| A tap that cannot be saved must not vanish | **SQS dead-letter queue + CloudWatch alarm** | After 3 failed tries a tap moves to a dead-letter queue and is kept 14 days, and a CloudWatch alarm fires as soon as one lands there (optionally emailing the team through SNS: `sam deploy --parameter-overrides AlertEmail=you@example.com`). `ReportBatchItemFailures` retries only the failed taps in a batch, not the whole batch. |
 | "Which station runs dry next?" even when nobody is tapping | **EventBridge Scheduler → Lambda** | Every 2 minutes a Lambda projects each live station's run-dry time and flags quiet stations. There's no server to keep alive, and the board and the Lambda share the same code (`src/core/projection.js`). |
 | A runner ignores a job | **Step Functions (Standard)** | Each job is one execution: assign → wait for "On my way" (3 min, else reassign) → wait for "Delivered" (45 min). The waits use task tokens, so nothing polls and nothing runs while waiting. A runner's tap resumes the execution. |
 | Store events, stations, taps | **DynamoDB, on demand** | One table, one partition per event (`PK`/`SK`), so an event is one query. Live events are listed through `PK = EVENTS`, never a table scan. On-demand billing means an idle app costs nothing. |
+| Nobody floods the open routes | **API Gateway throttling** | Anyone can create an event, so the API is capped at 50 requests a second (bursts of 100). The tested peak, 500 taps in 30 s, is about 17 a second. |
 | Website and API on one address | **S3 + CloudFront** | The site comes from a private S3 bucket (Origin Access Control); `/api/*` is forwarded to API Gateway. One https address, so phones need no CORS preflight and service workers work. |
 | Infrastructure as code | **AWS SAM** | One `template.yaml`; `npm run deploy` builds it, `sam delete` removes all of it. |
 
@@ -54,6 +55,7 @@ All Lambdas run Node.js 22 on arm64 (Graviton: cheaper per millisecond than x86)
   - Only the API, the projector and the tap consumer can start the dispatch state machine, and only that one.
   - The state machine can invoke only the dispatch function.
   - `states:SendTaskSuccess` has `Resource: '*'` because task tokens have no ARN to scope to. That's an AWS limitation, noted in the template.
+- **Taps arrive out of order on AWS, and that's fine.** The SQS queue does not keep order, so the "last tap / last jar / stock count" times on a station only ever move forward: an older tap that arrives late is counted but never overwrites newer information.
 - **Taps count exactly once.** Each tap has an id made on the phone. The tap and the station counters are written in one DynamoDB transaction that only succeeds if the id is new. Retries from the offline queue, SQS redelivery or a double tap change nothing.
 - **Private bucket, https only:** S3 blocks all public access, and CloudFront redirects http to https.
 
@@ -135,9 +137,9 @@ The site and the API share one CloudFront address: the site from S3, and `/api/*
 
 ## Tests
 ```bash
-npm test             # unit (68): plan maths, projection, dispatch, validation, key hashing
-npm run test:int     # integration (37): API handler against DynamoDB Local
-npm run test:e2e     # browser (31 checks): plan, PIN, QR, taps, offline, Hindi, board, stock, dispatch, summary (needs api + serve running)
+npm test             # unit (70): plan maths, projection, dispatch, validation, key hashing
+npm run test:int     # integration (40): API handler against DynamoDB Local
+npm run test:e2e     # browser (31 scenarios, 99 assertions): plan, PIN, QR, taps, offline, Hindi, board, stock, dispatch, summary (needs api + serve running)
 node scripts/load-test.mjs https://<site>/api 500 30   # 500 taps in 30 s, checks none are lost
 # against the deployed site:
 WEB_URL=https://<site> API_URL=https://<site>/api npm run test:e2e
@@ -222,7 +224,7 @@ assign the free runner who has waited longest. The state machine starts only whe
 - **Before real users:**
   - Role policies with Cedar, so it's one policy file instead of checks in code.
   - Token rotation (a new QR code if one leaks).
-  - Rate limits on the public routes.
+  - Per-user rate limits (today there is one limit for the whole API).
   - CloudWatch log retention (logs are kept forever by default).
   - Left out of the hackathon build on purpose, so judges can try every role from their own event.
 

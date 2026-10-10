@@ -136,7 +136,24 @@ export async function updateEvent(id, auth, input) {
       sets.push(`#${k} = :${k}`);
     }
   }
-  await db.send(new UpdateCommand({ TableName: TABLE, Key: { PK: pk(id), SK: 'META' }, UpdateExpression: `SET ${sets.join(', ')}`, ExpressionAttributeNames: names, ExpressionAttributeValues: values }));
+  const update = { TableName: TABLE, Key: { PK: pk(id), SK: 'META' }, UpdateExpression: `SET ${sets.join(', ')}`, ExpressionAttributeNames: names, ExpressionAttributeValues: values };
+  if (!patch.startsAt) {
+    await db.send(new UpdateCommand(update));
+    return { ok: true };
+  }
+  // New start time: move the event's entry in the start-time index too, so the scheduled check finds it.
+  const meta = (await db.send(new GetCommand({ TableName: TABLE, Key: { PK: pk(id), SK: 'META' } }))).Item;
+  const index = (startsAt) => ({ PK: 'EVENTS', SK: `${startsAt}#${id}` });
+  const endsAt = new Date(Date.parse(patch.startsAt) + meta.hourCount * 3600000).toISOString();
+  await db.send(
+    new TransactWriteCommand({
+      TransactItems: [
+        { Update: update },
+        ...(meta.startsAt && meta.startsAt !== patch.startsAt ? [{ Delete: { TableName: TABLE, Key: index(meta.startsAt) } }] : []),
+        { Put: { TableName: TABLE, Item: { ...index(patch.startsAt), type: 'event-index', id, endsAt } } },
+      ],
+    })
+  );
   return { ok: true };
 }
 
@@ -184,7 +201,11 @@ export async function addStation(id, pin, input) {
 export async function removeStation(id, pin, sid) {
   await requirePin(id, pin);
   if ((await countItems(id, 'STN#')) <= 1) throw new HttpError(400, 'An event needs at least one station.');
-  await db.send(new DeleteCommand({ TableName: TABLE, Key: { PK: pk(id), SK: `STN#${sid}` }, ConditionExpression: 'attribute_exists(PK)' })).catch(notFound('Station'));
+  // A station with a runner on the way keeps its job until it is delivered (or times out); removing it
+  // then would leave that job unable to close.
+  await db
+    .send(new DeleteCommand({ TableName: TABLE, Key: { PK: pk(id), SK: `STN#${sid}` }, ConditionExpression: 'attribute_exists(PK) AND attribute_not_exists(openJobId)' }))
+    .catch(busyOrNotFound(id, `STN#${sid}`, 'Station', (x) => `${x.name} has a runner job open. Remove it after the jars are delivered.`));
   return { ok: true };
 }
 
@@ -199,9 +220,20 @@ export async function addRunner(id, pin, input) {
 
 export async function removeRunner(id, pin, rid) {
   await requirePin(id, pin);
-  await db.send(new DeleteCommand({ TableName: TABLE, Key: { PK: pk(id), SK: `RUN#${rid}` }, ConditionExpression: 'attribute_exists(PK)' })).catch(notFound('Runner'));
+  // Same for a runner with a job in progress: the job needs them to close.
+  await db
+    .send(new DeleteCommand({ TableName: TABLE, Key: { PK: pk(id), SK: `RUN#${rid}` }, ConditionExpression: 'attribute_exists(PK) AND attribute_not_exists(currentJobId)' }))
+    .catch(busyOrNotFound(id, `RUN#${rid}`, 'Runner', (x) => `${x.name} has a job in progress. Remove them after it is delivered.`));
   return { ok: true };
 }
+
+// A failed conditional delete: 404 if the item is gone, 409 (with why) if it is busy.
+const busyOrNotFound = (id, sk, what, busyMessage) => async (err) => {
+  if (err.name !== 'ConditionalCheckFailedException') throw err;
+  const res = await db.send(new GetCommand({ TableName: TABLE, Key: { PK: pk(id), SK: sk } }));
+  if (!res.Item) throw new HttpError(404, `${what} not found.`);
+  throw new HttpError(409, busyMessage(res.Item));
+};
 
 const notFound = (what) => (err) => {
   if (err.name === 'ConditionalCheckFailedException') throw new HttpError(404, `${what} not found.`);

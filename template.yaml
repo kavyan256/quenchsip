@@ -11,6 +11,13 @@ Parameters:
     Type: Number
     Default: 2700
     Description: How long a runner has to tap "Delivered" before the job is closed as not confirmed
+  AlertEmail:
+    Type: String
+    Default: ''
+    Description: Optional. Email to notify when a tap lands in the dead-letter queue (confirm the email AWS sends)
+
+Conditions:
+  HasAlertEmail: !Not [!Equals [!Ref AlertEmail, '']]
 
 Globals:
   Function:
@@ -42,6 +49,11 @@ Resources:
         AllowOrigins: ['*']
         AllowMethods: [GET, POST, PATCH, DELETE, OPTIONS]
         AllowHeaders: [content-type, x-organiser-pin, x-organiser-key, x-access-token]
+      # Caps abuse and cost on the open routes (anyone can create an event). The peak we tested,
+      # 500 taps in 30 s, is about 17 requests a second.
+      DefaultRouteSettings:
+        ThrottlingRateLimit: 50
+        ThrottlingBurstLimit: 100
 
   ApiFunction:
     Type: AWS::Serverless::Function
@@ -111,6 +123,30 @@ Resources:
     Type: AWS::SQS::Queue
     Properties:
       MessageRetentionPeriod: 1209600 # 14 days, to inspect taps that could not be saved
+  # Someone should know when a tap could not be saved: alarm as soon as the dead-letter queue has a message.
+  TapDeadLetterAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: A volunteer tap failed 3 times and is in the dead-letter queue. Check the tap consumer logs.
+      Namespace: AWS/SQS
+      MetricName: ApproximateNumberOfMessagesVisible
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt TapDeadLetterQueue.QueueName
+      Statistic: Maximum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 0
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+      AlarmActions: !If [HasAlertEmail, [!Ref AlertTopic], !Ref AWS::NoValue]
+  AlertTopic:
+    Type: AWS::SNS::Topic
+    Condition: HasAlertEmail
+    Properties:
+      Subscription:
+        - Protocol: email
+          Endpoint: !Ref AlertEmail
 
   TapConsumerFunction:
     Type: AWS::Serverless::Function

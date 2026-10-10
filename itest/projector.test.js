@@ -85,3 +85,22 @@ test('a removed station does not break the run', async () => {
   assert.equal(mine.error, undefined);
   assert.equal(mine.stations, 1);
 });
+
+test('moving the start time moves the event in the live index (the scheduled check follows it)', async () => {
+  const now = Date.now();
+  const { id } = await liveEvent(now, -60); // starts in an hour, so not live yet
+  assert.ok(!(await liveEventIds(now)).includes(id));
+  const patch = async (body, headers = { 'x-organiser-pin': '2468' }) => {
+    const res = await handler({ rawPath: `/events/${id}`, requestContext: { http: { method: 'PATCH' } }, headers, body: JSON.stringify(body) });
+    return res.statusCode;
+  };
+  assert.equal(await patch({ startsAt: minAgo(10, now), startHour: 9 }), 200);
+  assert.ok((await liveEventIds(now)).includes(id), 'now live');
+  const ev = await call('GET', `/events/${id}`);
+  assert.equal(ev.event.startsAt, minAgo(10, now));
+  assert.equal(ev.event.startHour, 9);
+  assert.equal(await patch({ startsAt: minAgo(-120, now), startHour: 11 }), 200);
+  assert.ok(!(await liveEventIds(now)).includes(id), 'moved later: the old index entry is gone');
+  assert.equal(await patch({ startsAt: 'soon', startHour: 9 }), 400);
+  assert.equal(await patch({ startsAt: minAgo(10, now), startHour: 9 }, {}), 403, 'organiser only');
+});

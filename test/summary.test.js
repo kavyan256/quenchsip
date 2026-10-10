@@ -51,3 +51,8 @@ test('CSV escapes commas and quotes', () => {
   assert.match(csv, /^Station,Zone,Jars swapped/);
   assert.match(csv, /"Gate, ""main""",Z,1,20,0,no,0,0,0,0/);
 });
+
+test('CSV shows formula-like names as text, so Excel never runs them', () => {
+  const csv = stationsCsv(summarize({ event, stations: [{ id: 'a', name: '=HYPERLINK("x")', zone: '@Z', swapCount: 1 }] }));
+  assert.match(csv.split('\n')[1], /^"'=HYPERLINK\(""x""\)",'@Z,1,/);
+});

@@ -1,7 +1,7 @@
 // Tap storage. One transaction: store the tap (only if its id is new) and update the station's counters.
 // A retried tap fails the first condition, so nothing is counted twice.
 //   PK EVT#<id>  SK TAP#<uuid>  type, stationId, tappedAt, receivedAt, deviceTs
-import { TransactWriteCommand } from '@aws-sdk/lib-dynamodb';
+import { TransactWriteCommand, UpdateCommand } from '@aws-sdk/lib-dynamodb';
 import { db, TABLE } from './db.js';
 import { HttpError } from './events.js';
 import { validateTap } from '../core/tap.js';
@@ -9,12 +9,32 @@ import { validateTap } from '../core/tap.js';
 const COUNTER = { swap: 'swapCount', last_jar: 'lastJarCount', cups_low: 'cupsLowCount', stocked: 'stockCount' };
 const LAST_AT = { swap: 'lastSwapAt', last_jar: 'lastJarAt', cups_low: 'cupsLowAt', stocked: 'stockedAt' };
 
-// Extra station fields per tap type. Swap times feed the projection; a stock count replaces any earlier count.
-// Note: phones send their queued taps oldest first, so "last ... at" fields end on the newest tap.
+// Swap times feed the projection (it sorts them, so arrival order does not matter).
 function extraUpdate(tap) {
-  if (tap.type === 'swap') return { set: ', swapTimes = list_append(if_not_exists(swapTimes, :empty), :t)', values: { ':t': [tap.tappedAt], ':empty': [] } };
-  if (tap.type === 'stocked') return { set: ', stockedJars = :jars, stockedCups = :cups, stocked = :yes', values: { ':jars': tap.jars, ':cups': tap.cups, ':yes': true } };
+  if (tap.type === 'swap') return { set: ' SET swapTimes = list_append(if_not_exists(swapTimes, :empty), :t)', values: { ':t': [tap.tappedAt], ':empty': [] } };
   return { set: '', values: {} };
+}
+
+// "Last ... at" fields (and the stock count) only ever move forward in time. On AWS taps come through an
+// SQS queue that does not keep order, so an older tap can arrive after a newer one; it must not win.
+async function moveForward(pk, stationId, tap) {
+  const sets = { lastTapAt: {}, [LAST_AT[tap.type]]: tap.type === 'stocked' ? { stockedJars: tap.jars, stockedCups: tap.cups } : {} };
+  for (const [field, extra] of Object.entries(sets)) {
+    const extraSet = Object.keys(extra).map((k) => `, ${k} = :${k}`).join('');
+    await db
+      .send(
+        new UpdateCommand({
+          TableName: TABLE,
+          Key: { PK: pk, SK: `STN#${stationId}` },
+          ConditionExpression: `attribute_exists(SK) AND (attribute_not_exists(${field}) OR ${field} < :at)`,
+          UpdateExpression: `SET ${field} = :at${extraSet}`,
+          ExpressionAttributeValues: { ':at': tap.tappedAt, ...Object.fromEntries(Object.entries(extra).map(([k, v]) => [`:${k}`, v])) },
+        })
+      )
+      .catch((err) => {
+        if (err.name !== 'ConditionalCheckFailedException') throw err; // a newer tap already set it
+      });
+  }
 }
 
 export async function recordTap(eventId, stationId, input) {
@@ -39,8 +59,8 @@ export async function recordTap(eventId, stationId, input) {
               TableName: TABLE,
               Key: { PK: pk, SK: `STN#${stationId}` },
               ConditionExpression: 'attribute_exists(SK)',
-              UpdateExpression: `ADD ${COUNTER[tap.type]} :one SET ${LAST_AT[tap.type]} = :at, lastTapAt = :at${extra.set}`,
-              ExpressionAttributeValues: { ':one': 1, ':at': tap.tappedAt, ...extra.values },
+              UpdateExpression: `ADD ${COUNTER[tap.type]} :one${tap.type === 'stocked' ? ' SET stocked = :yes' : extra.set}`,
+              ExpressionAttributeValues: { ':one': 1, ...(tap.type === 'stocked' ? { ':yes': true } : extra.values) },
             },
           },
         ],
@@ -49,10 +69,15 @@ export async function recordTap(eventId, stationId, input) {
   } catch (err) {
     if (err.name !== 'TransactionCanceledException') throw err;
     const [tapReason, stationReason] = (err.CancellationReasons || []).map((r) => r?.Code);
-    if (tapReason === 'ConditionalCheckFailed') return { uuid: tap.uuid, duplicate: true };
+    if (tapReason === 'ConditionalCheckFailed') {
+      // Already stored. Re-apply the times in case the first attempt stopped before doing so (idempotent).
+      await moveForward(pk, stationId, tap);
+      return { uuid: tap.uuid, duplicate: true };
+    }
     if (stationReason === 'ConditionalCheckFailed') throw new HttpError(404, 'Station not found.');
     throw err;
   }
+  await moveForward(pk, stationId, tap);
   if (tap.type === 'last_jar') {
     // Best effort: a failure here must not lose the tap; the scheduled projector will dispatch anyway.
     await import('./dispatch.js')
