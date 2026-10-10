@@ -1,8 +1,11 @@
 import { escape, dayTime } from './api.js';
 import { myEvents } from './store.js';
 import { mountArt, svg } from './art.js';
+import { maybeWelcome, showWelcome } from './onboarding.js';
 
 mountArt();
+document.getElementById('replayIntro').addEventListener('click', showWelcome);
+maybeWelcome();
 
 const list = myEvents();
 if (list.length) {

@@ -17,7 +17,7 @@ export async function mountSummary(container, eventId) {
       <section class="calm summary-empty" id="summaryEmpty">
         <span class="art xl">${svg('dropRest')}</span>
         <p class="all-calm">Fills in during the event</p>
-        <p class="small">As volunteers tap "Jar swapped", you'll see the water served, plastic bottles not bought, dry minutes and runner times here.</p>
+        <p class="small">As volunteers tap "Jar swapped", you'll see the water served, plastic bottles avoided, dry minutes and runner times here.</p>
         ${counted ? `<p class="small">${counted} of ${s.totals.stations} stations have counted their stock so far.</p>` : ''}
       </section>`;
     return s;
@@ -28,7 +28,7 @@ export async function mountSummary(container, eventId) {
         <h2>Water from refill stations</h2>
         <div class="totals" id="water">
           ${stat(`${n(s.water.litres)} L`, 'water dispensed', 'jar')}
-          ${stat(`up to ${n(s.water.bottlesUpTo)}`, 'plastic bottles (500 ml) not bought', 'bottleNo')}
+          ${stat(`up to ${n(s.water.bottlesUpTo)}`, 'plastic bottles (500 ml) avoided', 'bottleNo')}
           ${stat(`${s.water.petKg.low}–${s.water.petKg.high} kg`, 'PET plastic avoided, at most', 'dropCheer')}
         </div>
         <p class="note" id="formula">${escape(s.water.formula)}</p>
@@ -67,7 +67,7 @@ export async function mountSummary(container, eventId) {
 
   container.querySelector('[data-act="share"]').onclick = () =>
     shareText(
-      `${s.event.name}: ${n(s.water.litres)} L of water served from refill stations, up to ${n(s.water.bottlesUpTo)} plastic bottles not bought. ${s.totals.stockedBeforeStart} of ${s.totals.stations} stations ready before the start. ${location.origin}/summary.html?e=${eventId}`,
+      `${s.event.name}: ${n(s.water.litres)} L of water served from refill stations, up to ${n(s.water.bottlesUpTo)} plastic bottles avoided. ${s.totals.stockedBeforeStart} of ${s.totals.stations} stations ready before the start. ${location.origin}/summary.html?e=${eventId}`,
       `${s.event.name} summary`
     );
   container.querySelector('[data-act="csv"]').onclick = () => {

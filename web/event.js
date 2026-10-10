@@ -5,6 +5,7 @@ import { boardMarkup } from './liveboard.js';
 import { mountSummary } from './summary-view.js';
 import { shareText, copyText, downloadReminder } from './share.js';
 import { mountArt, svg } from './art.js';
+import { maybeTour, startTour } from './onboarding.js';
 
 const $ = (id) => document.getElementById(id);
 const eventId = param('e');
@@ -149,7 +150,13 @@ async function load() {
   renderSetup();
   renderLive();
   if ($('stationsSheet').open) renderSheet();
+  // First time an organiser opens a hub: a short tour of the checklist (never on view-only links).
+  if (canEdit && !toured && tab === 'setup' && !$('stationsSheet').open) {
+    toured = true;
+    requestAnimationFrame(maybeTour);
+  }
 }
+let toured = false;
 
 async function poll() {
   try {
@@ -295,6 +302,8 @@ if (!eventId) {
   mountArt();
   $('viewOnly').hidden = canEdit;
   $('keepLink').hidden = !canEdit;
+  $('replayTour').hidden = !canEdit;
+  $('replayTour').addEventListener('click', () => { showTab('setup'); startTour(); });
   showTab(tab);
   poll();
   setInterval(poll, POLL_MS);

@@ -91,6 +91,26 @@ const createdEvents = [];
 try {
   await sleep(1500);
 
+  // First visit: welcome slides on the home page, once, skippable, and they can be replayed.
+  const home = await open(`${WEB}/index.html`);
+  const obTitle = `document.getElementById('obTitle')?.textContent`;
+  await waitFor(home, `${obTitle} === 'Water without plastic bottles'`);
+  assert.equal(await home.ev(`document.querySelector('.ob-sheet').getAttribute('aria-modal')`), 'true');
+  for (let n = 0; n < 3; n++) await home.ev(`document.querySelector('[data-ob="next"]').click()`);
+  assert.equal(await home.ev(obTitle), 'See what you saved');
+  assert.equal(await home.ev(`document.querySelector('[data-ob="next"]').textContent`), 'Set up my event');
+  await home.ev(`document.querySelector('[data-ob="look"]').click()`);
+  assert.equal(await home.ev(`document.querySelector('.ob-sheet')`), null, '"Look around first" closes it');
+  await home.ev('location.reload()');
+  await sleep(1500);
+  assert.equal(await home.ev(`document.querySelector('.ob-sheet')`), null, 'not shown again');
+  await home.ev(`document.getElementById('replayIntro').click()`);
+  await waitFor(home, `${obTitle} === 'Water without plastic bottles'`);
+  await home.ev(`document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' })); window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))`);
+  assert.equal(await home.ev(`document.querySelector('.ob-sheet')`), null, 'Esc skips');
+  await home.close();
+  step('welcome slides: 4 steps on the first visit, then never again unless replayed; Esc skips');
+
   // Set up: one question per screen; only the name is typed, everything else is a tap with a default.
   const page = await open(`${WEB}/plan.html`);
   const visibleStep = `document.querySelector('.flow-step:not([hidden])').dataset.step`;
@@ -126,6 +146,15 @@ try {
   assert.match(orgKey, /^[a-z0-9]{24}$/, 'organiser link carries the private key');
   await waitFor(page, `document.getElementById('stationsLine').textContent.startsWith('4 stations')`, 15000);
   assert.match(await page.ev(`document.getElementById('progressText').textContent`), /1 of 4 done/);
+  // First time in a hub with the organiser link: a 4-step tour, then off for the rest of this run.
+  await waitFor(page, `document.getElementById('obTipStep')?.textContent === 'Step 1 of 4'`);
+  for (let n = 0; n < 3; n++) await page.ev(`document.querySelector('.ob-tip [data-ob="next"]').click()`);
+  assert.equal(await page.ev(`document.getElementById('obTipStep').textContent`), 'Step 4 of 4');
+  assert.equal(await page.ev(`document.querySelector('.ob-tip [data-ob="next"]').textContent`), 'Done');
+  await page.ev(`document.querySelector('.ob-tip [data-ob="next"]').click()`);
+  assert.equal(await page.ev(`document.querySelector('.ob-tip')`), null);
+  assert.equal(await page.ev(`document.getElementById('replayTour').hidden`), false, '"Show me around" replays it');
+  await page.ev(`localStorage.setItem('qs-intro-off', '1')`); // like ?intro=off: keeps first-time help out of the remaining checks
   assert.match(await page.ev(`document.getElementById('subtitle').textContent`), /^\w{3}, \d{1,2} \w{3} · \d{1,2}:\d{2} (am|pm)–\d{1,2}:\d{2} (am|pm) · 2,000 people$/, 'same time format as set up');
   // Wrong time? Change it in Fine-tune; the header follows.
   const subtitleBefore = await page.ev(`document.getElementById('subtitle').textContent`);
@@ -166,6 +195,7 @@ try {
   await sleep(1500);
   await waitFor(viewer, `document.getElementById('stationsLine').textContent !== ''`);
   assert.equal(await viewer.ev(`document.getElementById('viewOnly').hidden`), false);
+  assert.equal(await viewer.ev(`document.getElementById('replayTour').hidden`), true, 'no tour on a view-only link');
   assert.equal(await viewer.ev(`document.getElementById('editStations').disabled`), true);
   const refused = await fetch(`${API}/events/${eventId}`, { method: 'PATCH', headers: { 'content-type': 'application/json', 'x-organiser-key': 'x'.repeat(24) }, body: '{"runnerTripMin":5}' }).catch(() => null);
   if (refused) assert.equal(refused.status, 403);
@@ -522,6 +552,19 @@ try {
   assert.equal(north.restocks.length, 1);
   assert.deepEqual([runnerPage.errors, dispBoard.errors], [[], []]);
   await runnerPage.close();
+  // A runner's first visit: a 3-line card that doesn't hide the job (here with first-time help back on).
+  const firstRunner = await open(`${WEB}/index.html`);
+  await firstRunner.ev(`localStorage.removeItem('qs-intro-off')`);
+  await firstRunner.ev(`location.href = '/r.html?e=${disp.id}&r=${ashaId}&t=${dispData.runners[0].token}'`);
+  await sleep(1500);
+  await waitFor(firstRunner, `!document.getElementById('runnerIntro').hidden`);
+  assert.match(await firstRunner.ev(`document.getElementById('rIntroTitle').textContent`), /You're a runner for Dispatch Test/);
+  await firstRunner.ev(`document.getElementById('rIntroOk').click()`);
+  await firstRunner.ev('location.reload()');
+  await sleep(1500);
+  assert.equal(await firstRunner.ev(`document.getElementById('runnerIntro').hidden`), true, 'once per phone');
+  await firstRunner.ev(`localStorage.setItem('qs-intro-off', '1')`);
+  await firstRunner.close();
   await dispBoard.close();
   step('runner taps "Delivered": station restocked to 5 jars, board back to OK, runner free');
 

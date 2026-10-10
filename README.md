@@ -10,7 +10,7 @@ Built for Environmental Hacks (WeMakeDevs x AWS), Waste and Energy track, 8-11 O
 
 **Live:** https://d3116g1xm6u7mg.cloudfront.net (AWS, ap-south-1 Mumbai)
 
-**Tests:** 70 unit · 40 integration (API against DynamoDB Local) · 31 browser scenarios with 99 assertions (headless Chrome), run locally and against the deployed AWS site (30 there; one needs a local server) · load test: 500 taps in 30 s on AWS, 0 lost. How to run them: [Tests](#tests).
+**Tests:** 70 unit · 40 integration (API against DynamoDB Local) · 32 browser scenarios with 112 assertions (headless Chrome), run locally and against the deployed AWS site (31 there; one needs a local server) · load test: 500 taps in 30 s on AWS, 0 lost. How to run them: [Tests](#tests).
 
 ## Screenshots
 | Set up: the water plan | Volunteer: one step at a time | Runner: a job |
@@ -25,7 +25,7 @@ Built for Environmental Hacks (WeMakeDevs x AWS), Waste and Energy track, 8-11 O
 
 <img src="docs/screenshots/hub-checklist.png" width="800" alt="Event hub set-up checklist on a laptop">
 
-<img src="docs/screenshots/summary.png" width="800" alt="Summary: water served, plastic bottles not bought, dry minutes, runner jobs">
+<img src="docs/screenshots/summary.png" width="800" alt="Summary: water served, plastic bottles avoided, dry minutes, runner jobs">
 
 Try it yourself: open the [live site](https://d3116g1xm6u7mg.cloudfront.net), set up an event, then open a station's QR link on your phone. [How it runs on AWS](https://d3116g1xm6u7mg.cloudfront.net/architecture.html).
 
@@ -99,7 +99,8 @@ All Lambdas run Node.js 22 on arm64 (Graviton: cheaper per millisecond than x86)
    - **Live**: problems first; OK stations fold away.
    - **Summary**: water served, bottles avoided, runner times.
 3. **No accounts or PIN.** Creating an event gives a private organiser link (`…#k=<key>`). The key sits after `#`, so it is never sent in the URL; the page sends it in a header and the server stores only its hash. The link is saved in "My events" on that device; "Send to myself" shares it to another device. Without it, the hub is view only.
-4. **Volunteers and runners** open their own link or QR code. Add to home screen for an app-like icon (web app manifest).
+4. **First time on a device:** four short welcome slides on the home page, a 4-step tour of the hub for the organiser, and a 3-line card for volunteers and runners. Each shows once; "Show the intro again" / "Show me around" replay them. Add `?intro=off` to any page address to switch them off on that device (for recordings).
+5. **Volunteers and runners** open their own link or QR code. Add to home screen for an app-like icon (web app manifest).
 
 ## Architecture
 | Piece | Local | AWS |
@@ -139,7 +140,7 @@ The site and the API share one CloudFront address: the site from S3, and `/api/*
 ```bash
 npm test             # unit (70): plan maths, projection, dispatch, validation, key hashing
 npm run test:int     # integration (40): API handler against DynamoDB Local
-npm run test:e2e     # browser (31 scenarios, 99 assertions): plan, PIN, QR, taps, offline, Hindi, board, stock, dispatch, summary (needs api + serve running)
+npm run test:e2e     # browser (32 scenarios, 112 assertions): plan, PIN, QR, taps, offline, Hindi, board, stock, dispatch, summary (needs api + serve running)
 node scripts/load-test.mjs https://<site>/api 500 30   # 500 taps in 30 s, checks none are lost
 # against the deployed site:
 WEB_URL=https://<site> API_URL=https://<site>/api npm run test:e2e

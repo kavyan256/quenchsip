@@ -322,7 +322,7 @@ button:disabled { opacity: 0.6; cursor: wait; }
 
 /* ---------- Redesign: set up, hub, home ---------- */
 main.narrow, main.hub { max-width: 640px; }
-.top-nav { margin: 0 0 4px; font-size: 0.95rem; }
+.top-nav { margin: 0 0 4px; font-size: 0.95rem; display: flex; justify-content: space-between; align-items: center; gap: var(--s3); }
 .eyebrow { text-transform: uppercase; letter-spacing: 0.06em; font-size: 0.8rem; font-weight: 700; color: var(--muted); margin: 0 0 6px; }
 .center { text-align: center; }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
@@ -739,3 +739,43 @@ legend.ask + * { margin-top: 0; }
   main.flow { max-width: 760px; }
   main.flow .options { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
 }
+
+/* ---------- First-time help: welcome slides and hub tour (onboarding.js) ---------- */
+body.ob-open { overflow: hidden; }
+.ob-sheet { position: fixed; inset: 0; z-index: 50; background: var(--bg); display: flex; }
+.ob-card { flex: 1; display: flex; flex-direction: column; padding: var(--s4) var(--s4) var(--s5); overflow-y: auto; }
+.ob-top { display: flex; justify-content: space-between; align-items: center; min-height: 44px; }
+.ob-brand { display: flex; align-items: center; gap: 8px; font-weight: 800; }
+.ob-skip { background: transparent; border: 0; box-shadow: none; color: var(--muted); font-weight: 700; font-size: 1rem; padding: 8px 4px; min-height: 44px; }
+.ob-stage { flex: 1; display: flex; flex-direction: column; align-items: center; text-align: center; gap: var(--s4); padding-top: 6vh; max-width: 520px; width: 100%; margin: 0 auto; }
+.ob-art { position: relative; width: 260px; height: 220px; flex: none; border-radius: 40px; background: var(--accent-soft); display: flex; align-items: flex-end; justify-content: center; gap: 6px; padding-bottom: 28px; }
+.ob-art .art { width: 96px; height: 96px; }
+.ob-art .art.big { width: 128px; height: 128px; }
+.ob-art .art.sm { width: 64px; height: 64px; }
+.ob-art .spark { position: absolute; }
+.ob-art .s1 { width: 10px; height: 10px; border-radius: 3px; background: #FBBF24; left: 28px; top: 30px; transform: rotate(20deg); }
+.ob-art .s2 { width: 8px; height: 8px; border-radius: 99px; background: #FB7185; right: 34px; top: 44px; }
+.ob-art .s3 { width: 9px; height: 9px; border-radius: 3px; background: #38BDF8; right: 52px; bottom: 30px; transform: rotate(-15deg); }
+.ob-step { font-size: 0.8rem; font-weight: 800; letter-spacing: 0.08em; text-transform: uppercase; color: var(--accent); margin: 0; }
+.ob-title { font-size: 1.75rem; font-weight: 900; line-height: 1.15; margin: 0; }
+.ob-text { font-size: 1.1rem; line-height: 1.45; color: var(--muted); margin: 0; max-width: 32ch; }
+.ob-dots { display: flex; gap: 8px; justify-content: center; margin: var(--s4) 0; }
+.ob-dots span { width: 8px; height: 8px; border-radius: 99px; background: var(--border); transition: width 150ms ease-out; }
+.ob-dots span.on { width: 28px; background: var(--accent); }
+.ob-foot { max-width: 520px; width: 100%; margin: 0 auto; display: grid; gap: var(--s2); }
+.ob-foot .primary-btn { width: 100%; min-height: 56px; font-size: 1.1rem; display: flex; justify-content: center; align-items: center; }
+.ob-foot .link-btn { text-align: center; text-decoration: none; padding: var(--s2); }
+@media (min-width: 1024px) {
+  .ob-sheet { background: rgb(15 21 19 / 0.45); align-items: center; justify-content: center; }
+  .ob-card { flex: none; background: var(--bg); border-radius: 28px; width: 520px; min-height: 640px; padding: var(--s5); box-shadow: 0 20px 60px rgb(0 0 0 / 0.25); }
+}
+.ob-shield { position: fixed; inset: 0; z-index: 40; }
+.ob-spot { position: fixed; z-index: 41; border-radius: 22px; pointer-events: none; box-shadow: 0 0 0 4px var(--accent), 0 0 0 9999px rgb(15 21 19 / 0.6); }
+.ob-tip { position: fixed; z-index: 42; display: flex; gap: 10px; align-items: flex-start; width: min(340px, calc(100vw - 32px)); }
+.ob-tip .art { width: 56px; height: 56px; flex: none; }
+.ob-tip-body { flex: 1; background: var(--surface); border-radius: 18px; padding: var(--s3) var(--s4); box-shadow: 0 10px 30px rgb(0 0 0 / 0.25); }
+.ob-tip-body p#obTipText { margin: 4px 0 var(--s3); font-size: 1.02rem; line-height: 1.4; color: var(--text); }
+.ob-tip-row { display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+.ob-tip-row .primary-btn { min-height: 44px; padding: 0 18px; font-size: 0.95rem; }
+.ob-tip-row .ob-skip { font-size: 0.9rem; }
+.replay-link { background: transparent; border: 0; box-shadow: none; padding: 0; color: var(--accent); font-weight: 700; font-size: 0.95rem; text-decoration: underline; min-height: 44px; }

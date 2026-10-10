@@ -15,6 +15,7 @@
     <div class="station-name" id="runnerName">Loading…</div>
     <p id="loadError" class="error" hidden></p>
 
+
     <section id="idle" class="card idle" hidden>
       <span class="art xl" data-art="dropRest"></span>
       <h2 data-i18n="noJob">No job right now</h2>
@@ -42,6 +43,19 @@
     </section>
 
     <div id="feedback" class="feedback" role="status" aria-live="polite"></div>
+
+    <!-- Below the job: a job never waits behind this card. -->
+    <section class="intro card" id="runnerIntro" hidden aria-labelledby="rIntroTitle">
+      <span class="art xl" data-art="runner"></span>
+      <h2 id="rIntroTitle"></h2>
+      <ol>
+        <li data-i18n="rIntro1">Keep this page open.</li>
+        <li data-i18n="rIntro2">A job appears with a beep. Tap "On my way".</li>
+        <li data-i18n="rIntro3">Tap "Delivered" when the jars are at the station.</li>
+      </ol>
+      <button type="button" class="primary-btn big" id="rIntroOk" data-i18n="gotIt">Got it</button>
+      <p class="small center" data-i18n="rIntroSound">Tapping "Got it" also lets this phone beep.</p>
+    </section>
   </main>
   <script type="module" src="r.js"></script>
 </body>

@@ -45,7 +45,7 @@ export function summarize({ event, stations, jobs = [], taps = [] }) {
       litres,
       bottlesUpTo,
       petKg: { low: round1((bottlesUpTo * BOTTLE_GRAMS.low) / 1000), high: round1((bottlesUpTo * BOTTLE_GRAMS.high) / 1000) },
-      formula: `${swaps} jars swapped × ${JAR_LITRES} L = ${litres.toLocaleString('en-IN')} L dispensed. ${litres.toLocaleString('en-IN')} L ÷ ${BOTTLE_LITRES} L = up to ${bottlesUpTo.toLocaleString('en-IN')} bottles of 500 ml not bought (if every litre would otherwise have come in a bottle). PET at ${BOTTLE_GRAMS.low}-${BOTTLE_GRAMS.high} g per bottle.`,
+      formula: `${swaps} jars swapped × ${JAR_LITRES} L = ${litres.toLocaleString('en-IN')} L dispensed. ${litres.toLocaleString('en-IN')} L ÷ ${BOTTLE_LITRES} L = up to ${bottlesUpTo.toLocaleString('en-IN')} bottles of 500 ml avoided (if every litre would otherwise have come in a bottle). PET at ${BOTTLE_GRAMS.low}-${BOTTLE_GRAMS.high} g per bottle.`,
     },
     stations: rows,
     totals: {

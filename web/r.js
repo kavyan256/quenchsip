@@ -2,6 +2,7 @@ import { api, param, escape, clockTime } from './api.js';
 import { JOB_STATES } from './core/dispatch.js';
 import { t, applyStatic, languageButton } from './i18n.js';
 import { mountArt } from './art.js';
+import { introOff } from './onboarding.js';
 
 const $ = (id) => document.getElementById(id);
 const eventId = param('e');
@@ -52,12 +53,30 @@ function alertNewJob(job) {
   }, 20000);
 }
 
+// First visit on this phone: a 3-line card. It doesn't hide a job; jobs can't wait.
+const introKey = `qs-rintro-${eventId}-${runnerId}`;
+let introChecked = false;
+function showIntroOnce(eventName) {
+  $('rIntroTitle').textContent = t('rIntroTitle', { event: eventName });
+  if (introChecked) return;
+  introChecked = true;
+  let seen = true;
+  try { seen = introOff() || localStorage.getItem(introKey) === '1'; } catch {}
+  if (seen) return;
+  $('runnerIntro').hidden = false;
+  $('rIntroOk').onclick = () => {
+    $('runnerIntro').hidden = true;
+    try { localStorage.setItem(introKey, '1'); } catch {}
+  };
+}
+
 function render(data) {
   lastData = data;
   const { event, runner, job, lastJob } = data;
   document.title = `${runner.name} · Runner · Quench`;
   $('eventName').textContent = event.name;
   $('runnerName').textContent = runner.name;
+  showIntroOnce(event.name);
   $('idle').hidden = Boolean(job);
   $('job').hidden = !job;
   if (!job) {
