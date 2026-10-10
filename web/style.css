@@ -711,3 +711,31 @@ legend.ask + * { margin-top: 0; }
 .legend-item { display: flex; align-items: center; gap: 6px; }
 .legend-item .chip { margin-top: 0; font-size: 0.85rem; padding: 2px 10px; white-space: nowrap; display: inline-flex; align-items: center; gap: 4px; }
 .legend .how { margin-top: var(--s3); }
+
+/* ---------- Desktop (organiser pages on a laptop) ---------- */
+@media (min-width: 1024px) {
+  /* Hub: wider, checklist in two columns, tabs stay compact. */
+  main.hub { max-width: 1120px; }
+  main.hub .tabs { max-width: 520px; }
+  /* Steps flow down two columns (1-2 left, 3-4 right), so a short card never leaves a gap. */
+  #tab-setup { columns: 2; column-gap: var(--s5); }
+  #tab-setup > .progress-card, #tab-setup > #viewOnly, #tab-setup > .keep-link, #tab-setup > .finetune { column-span: all; }
+  #tab-setup > .step { break-inside: avoid; margin-bottom: var(--s5); }
+  #tab-setup > .keep-link { margin-top: var(--s2); }
+  #tab-live .tiles { grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); }
+
+  /* Home: hero and "My events" side by side, how it works in one row. */
+  main.home { max-width: 1120px; display: grid; grid-template-columns: 1.1fr 1fr; gap: 0 var(--s6); align-items: start; }
+  main.home > .brand, main.home > .how, main.home > .links { grid-column: 1 / -1; }
+  main.home > #mine h2.q { margin-top: 0; }
+  main.home:has(#mine[hidden]) { grid-template-columns: 1fr; }
+  main.home:has(#mine[hidden]) .hero-card { max-width: 720px; }
+  main.home .how-list { grid-template-columns: repeat(4, 1fr); }
+
+  /* Summary: stats three across, wider page. */
+  #summaryMount .totals, #mount .totals { grid-template-columns: repeat(3, 1fr); }
+
+  /* Set up: still centred, but roomier, and option cards share one row. */
+  main.flow { max-width: 760px; }
+  main.flow .options { grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); }
+}
