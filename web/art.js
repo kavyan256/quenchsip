@@ -136,3 +136,17 @@ export function mountArt(root = document) {
 }
 
 export const artNames = Object.keys(ART);
+
+// Status icons: small, single-colour (they take the text colour of their status), one distinct shape each,
+// so a status never depends on colour alone.
+const STATUS_ICON = {
+  needs_jars: '<circle cx="12" cy="12" r="10" fill="currentColor"/><rect x="10.6" y="6" width="2.8" height="8" rx="1.4" style="fill:var(--icon-cut)"/><circle cx="12" cy="17.4" r="1.6" style="fill:var(--icon-cut)"/>',
+  not_stocked: '<rect x="5" y="4" width="14" height="17" rx="3" fill="none" stroke="currentColor" stroke-width="2.4"/><rect x="8.5" y="2" width="7" height="4" rx="1.5" fill="currentColor"/><path d="M8.5 11h7M8.5 15h4.5" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>',
+  quiet: '<circle cx="12" cy="12" r="9" fill="none" stroke="currentColor" stroke-width="2.4" stroke-dasharray="3.2 3"/><path d="M8.5 12h7" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/>',
+  cups_low: '<path d="M12 3 22 20.5H2z" fill="currentColor" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/><rect x="10.8" y="9" width="2.4" height="6.5" rx="1.2" style="fill:var(--icon-cut)"/><circle cx="12" cy="18" r="1.4" style="fill:var(--icon-cut)"/>',
+  ok: '<circle cx="12" cy="12" r="10" fill="currentColor"/><path d="m7 12.5 3.3 3.3L17 9" fill="none" style="stroke:var(--icon-cut)" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round"/>',
+};
+
+export function statusIcon(status) {
+  return `<svg class="st-svg" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" focusable="false">${STATUS_ICON[status] || ''}</svg>`;
+}

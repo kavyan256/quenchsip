@@ -2,11 +2,9 @@
 import { escape } from './api.js';
 import { boardView, ago, STATUS } from './core/board.js';
 import { jobLine } from './core/dispatch.js';
-import { svg } from './art.js';
+import { svg, statusIcon } from './art.js';
 
 const time = (ms) => new Date(ms).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-// A shape per status, so meaning never depends on colour alone.
-const ICON = { needs_jars: '●', not_stocked: '◐', quiet: '◌', cups_low: '▲', ok: '✓' };
 
 function detail(t, now) {
   const p = t.projection;
@@ -36,9 +34,9 @@ function jobTimeline(job) {
 
 function tile(t, data, now) {
   const job = t.station.openJobId && (data.jobs || []).find((j) => j.id === t.station.openJobId);
-  const extra = t.status !== 'cups_low' && t.flags.cupsLow ? '<span class="chip st-cups_low">▲ Cups low</span>' : '';
+  const extra = t.status !== 'cups_low' && t.flags.cupsLow ? `<span class="chip st-cups_low">${statusIcon('cups_low')} Cups low</span>` : '';
   return `<article class="tile st-${t.status}" aria-label="${escape(t.station.name)}: ${escape(t.label)}">
-    <div class="tile-head"><span class="st-icon" aria-hidden="true">${ICON[t.status]}</span><span class="tile-status">${escape(t.label)}</span></div>
+    <div class="tile-head"><span class="st-icon">${statusIcon(t.status)}</span><span class="tile-status">${escape(t.label)}</span></div>
     <div class="tile-name">${escape(t.station.name)}</div>
     ${t.station.zone ? `<div class="small">${escape(t.station.zone)}</div>` : ''}
     <div class="tile-detail">${escape(detail(t, now))}</div>
@@ -62,19 +60,28 @@ export function boardMarkup(data, now = Date.now(), { wide = true } = {}) {
         : `Ended at ${time(clock.end)}`;
   const summaryHtml = Object.entries(STATUS)
     .filter(([k]) => view.summary[k] > 0 && !(k === 'not_stocked' && clock.beforeStart)) // shown as the calm card instead
-    .map(([k, s]) => `<span class="chip st-${k}"><span aria-hidden="true">${ICON[k]}</span> ${view.summary[k]} ${escape(s.label.split(':')[0].toLowerCase())}</span>`)
+    .map(([k, s]) => `<span class="chip st-${k}">${statusIcon(k)} ${view.summary[k]} ${escape(s.label.split(':')[0].toLowerCase())}</span>`)
     .join('');
 
-  const uncounted = clock.known && clock.beforeStart ? view.tiles.filter((t) => t.status === 'not_stocked') : [];
-  const needs = view.tiles.filter((t) => t.status !== 'ok' && !uncounted.includes(t));
+  const notCounted = view.tiles.filter((t) => t.status === 'not_stocked');
+  const uncounted = clock.known && clock.beforeStart ? notCounted : [];
+  // After the start, stations still not counted are one red card with their names, not a wall of identical tiles.
+  const lateCount = uncounted.length ? [] : notCounted;
+  const needs = view.tiles.filter((t) => t.status !== 'ok' && !notCounted.includes(t));
   const fine = view.tiles.filter((t) => t.status === 'ok');
 
   const pre = uncounted.length
     ? `<section class="card pre-start"><span class="art lg">${svg('clipboard')}</span><div><h2 class="group-title">Before the gates open: ${view.tiles.length - uncounted.length} of ${view.tiles.length} stations counted</h2>
         <p class="small">Waiting for: ${uncounted.map((t) => escape(t.station.name)).join(', ')}</p></div></section>`
     : '';
-  const needsHtml = needs.length
-    ? `<h2 class="group-title">Needs you now (${needs.length})</h2><div class="tiles">${needs.map((t) => tile(t, data, now)).join('')}</div>`
+  const late = lateCount.length
+    ? `<section class="card not-counted st-not_stocked" aria-label="${lateCount.length} not counted yet"><span class="st-icon big">${statusIcon('not_stocked')}</span><div>
+        <h3 class="not-counted-title">${lateCount.length} station${lateCount.length === 1 ? '' : 's'} not counted yet: ${lateCount.map((t) => escape(t.station.name)).join(', ')}</h3>
+        <p class="small">Ask ${lateCount.length === 1 ? 'its volunteer' : 'their volunteers'} to count jars and cups in Quench.</p></div></section>`
+    : '';
+  const needCount = needs.length + lateCount.length;
+  const needsHtml = needCount
+    ? `<h2 class="group-title">Needs you now (${needCount})</h2>${late}${needs.length ? `<div class="tiles">${needs.map((t) => tile(t, data, now)).join('')}</div>` : ''}`
     : uncounted.length
       ? ''
       : `<section class="calm"><span class="art xl">${svg('dropCheer')}</span><p class="all-calm">Nothing needs you right now.</p><p class="small">Stations that need help will appear here first.</p></section>`;

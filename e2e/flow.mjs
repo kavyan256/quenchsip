@@ -111,6 +111,10 @@ try {
   assert.equal(await page.ev(`document.querySelectorAll('#flowProgress span.on').length`), 5);
   assert.match(await page.ev(`document.getElementById('order').textContent`), /^Order about \d+–\d+ jars/);
   assert.match(await page.ev(`document.getElementById('planJars').textContent`), /^\d+–\d+$/);
+  assert.match(await page.ev(`document.querySelector('.flow-step[data-step="5"]').textContent`), /kulhad, bagasse, areca leaf or paper without plastic lining[\s\S]*Skip plastic-lined paper cups/, 'the plan says which cups');
+  const sellerLinks = (root) => `[...document.querySelectorAll('${root} a[href*="google.com/maps"]')].map((a) => a.textContent + ': ' + new URL(a.href).searchParams.get('query')).join(' | ')`;
+  const sellers = 'Kulhad: kulhad wholesale near me | Bagasse: bagasse cups wholesale near me | Areca leaf: areca leaf cups wholesale near me | Paper, no plastic lining: aqueous coated paper cups wholesale near me';
+  assert.equal(await page.ev(sellerLinks('.cup-promo')), sellers, 'the plan links to nearby cup sellers on Maps');
   assert.equal(await page.ev(`document.getElementById('stations').textContent`), '4', '2,000 people -> 4 stations suggested');
   assert.match(await page.ev(`document.getElementById('planLine').textContent`), /^Spring Fest · Today .* · 2,000 people$/);
   await page.ev(`document.getElementById('create').click()`);
@@ -122,6 +126,8 @@ try {
   assert.match(orgKey, /^[a-z0-9]{24}$/, 'organiser link carries the private key');
   await waitFor(page, `document.getElementById('stationsLine').textContent.startsWith('4 stations')`, 15000);
   assert.match(await page.ev(`document.getElementById('progressText').textContent`), /1 of 4 done/);
+  assert.match(await page.ev(`document.querySelector('#step2 .cup-line').textContent`), /kulhad, bagasse, areca leaf or paper without plastic lining/);
+  assert.equal(await page.ev(sellerLinks('#step2')), sellers, 'the hub links to the same sellers');
   step('set up, one question per screen (back works), opens the hub: 4 stations, checklist 1 of 4');
 
   // Stations sheet: rename, busy spot, add a station; saves as you go.
@@ -361,10 +367,25 @@ try {
   await waitFor(board, `document.querySelectorAll('.tile').length === 4`);
   assert.deepEqual(await board.ev(tiles), ['Bravo: Needs jars now', 'Alpha: No taps: check on volunteer', 'Charlie: OK', 'Delta: OK']);
   assert.match(await board.ev(`document.getElementById('clock').textContent`), /^Live/);
+  assert.equal(await board.ev(`document.querySelectorAll('.tile .st-icon svg').length`), 4, 'every tile has a drawn status icon');
+  assert.doesNotMatch(await board.ev(`document.getElementById('tiles').textContent + document.getElementById('summary').textContent`), /[●◐◌▲]/, 'no text glyphs');
   step('board: needs-jars first, silent station flagged, active station OK');
 
   await waitFor(board, `${tiles}.includes('Delta: No taps: check on volunteer')`, 30000);
   step('status changes on the board with nobody tapping (Delta went quiet)');
+
+  // After the start, stations nobody has counted are one card with their names, not a wall of red tiles.
+  const late = await post('/events', {
+    name: 'Late Count', startsAt: new Date(Date.now() - 10 * 60000).toISOString(), attendees: 600, startHour: 0, hourCount: 2,
+    litresPerPersonHr: { low: 0.25, high: 0.5 }, share: { Field: [1, 1] }, pin: '2468',
+    stations: [{ name: 'Food', zone: 'Field' }, { name: 'Gate', zone: 'Field' }, { name: 'Stage', zone: 'Field' }],
+  });
+  const lateBoard = await open(`${WEB}/board.html?e=${late.id}`);
+  await waitFor(lateBoard, `document.querySelector('.not-counted') !== null`);
+  assert.match(await lateBoard.ev(`document.querySelector('.not-counted').textContent`), /3 stations not counted yet: Food, Gate, Stage/);
+  assert.equal(await lateBoard.ev(`document.querySelectorAll('.tile').length`), 0, 'no per-station red tiles');
+  await lateBoard.close();
+  step('after the start, uncounted stations are one card with their names');
 
   const tapAt = Date.now();
   await tapApi('Alpha', 'swap');
@@ -387,6 +408,10 @@ try {
     litresPerPersonHr: { low: 0.25, high: 0.5 }, share: { Field: [1, 1, 1] },
     stations: Array.from({ length: 20 }, (_, i) => ({ name: `Station ${i + 1}`, zone: 'Field' })), pin: '2468',
   });
+  // Every station counted, so the board draws 20 real tiles (uncounted ones would fold into one card).
+  for (const st of (await orgView(big.id)).stations) {
+    await post(`/events/${big.id}/stations/${st.id}/taps`, { uuid: crypto.randomUUID(), type: 'stocked', jars: 8, cups: 400, deviceTs: new Date().toISOString() }, asPhone(st));
+  }
   const slow = await open('about:blank');
   await slow.send('Network.enable');
   // ~4G: 50 ms latency, 4 Mbit/s down, 1 Mbit/s up.

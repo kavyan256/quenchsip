@@ -24,6 +24,10 @@
   --ok-text: #0b5d45;
   --warn-bg: #fff3e0;
   --warn-text: #8a4b00;
+  --promo-bg: #fff4dc;
+  --promo-border: #f59e0b;
+  --promo-btn: #c2410c;
+  --promo-btn-text: #ffffff;
   --radius: 10px;
 }
 
@@ -49,6 +53,10 @@
     --ok-text: #9fe5c9;
     --warn-bg: #3a2a12;
     --warn-text: #ffd59a;
+    --promo-bg: #2e2210;
+    --promo-border: #f5b84a;
+    --promo-btn: #fbbf24;
+    --promo-btn-text: #1f1300;
   }
 }
 
@@ -422,7 +430,10 @@ dialog#stationsSheet::backdrop { background: rgb(0 0 0 / 0.5); }
 .all-good { margin-top: 8px; }
 .all-good summary { cursor: pointer; font-weight: 700; min-height: 44px; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
 .tile-head { display: flex; align-items: center; gap: 6px; }
-.st-icon { font-size: 1.1rem; line-height: 1; }
+.st-icon { display: inline-flex; line-height: 1; }
+.st-svg { --icon-cut: var(--bg); width: 1.1em; height: 1.1em; flex: none; vertical-align: -0.15em; }
+.chip .st-svg { margin-right: 2px; }
+.st-icon.big .st-svg { width: 32px; height: 32px; }
 .job-line { margin-top: 2px; }
 .stat .big { font-variant-numeric: tabular-nums; }
 
@@ -663,3 +674,26 @@ legend.ask + * { margin-top: 0; }
 .flow-foot #createStatus { margin: 0 0 var(--s3); }
 .flow-foot #createStatus:empty { display: none; }
 @media (max-width: 360px) { .bubble { font-size: 1.15rem; } .option { min-height: 120px; padding: var(--s3); } }
+
+/* Cup type: steer organisers to cups that are really plastic-free */
+.cup-tip { display: flex; flex-direction: column; gap: 2px; background: var(--surface); border-radius: 12px; padding: 10px 14px; }
+.cup-tip strong { font-weight: 800; }
+.cup-line { margin: var(--s2) 0 0; }
+.cup-find { display: flex; flex-direction: column; gap: 6px; margin-top: var(--s2); }
+.cup-find-row { display: flex; flex-wrap: wrap; gap: 8px; }
+.cup-find .chip-btn { display: inline-flex; align-items: center; text-decoration: none; }
+.cup-promo { background: var(--promo-bg); border: 2px solid var(--promo-border); border-radius: 20px; padding: var(--s5); display: grid; gap: var(--s4); }
+.cup-promo-head { display: flex; align-items: center; gap: var(--s3); }
+.cup-promo-head .art { flex: none; }
+.cup-promo h2 { margin: 0; font-size: 1.25rem; font-weight: 900; line-height: 1.25; }
+.cup-promo .nowrap { white-space: nowrap; }
+.cup-promo-head .art { width: 52px; height: 52px; }
+.cup-promo p { margin: 2px 0 0; }
+.cup-promo-row { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s2); }
+.cup-promo-btn { flex: 1 1 auto; display: inline-flex; align-items: center; justify-content: center; min-height: 52px; padding: 6px var(--s3); text-align: center; line-height: 1.2;
+  border-radius: 14px; background: var(--promo-btn); color: var(--promo-btn-text); font-weight: 800; text-decoration: none; box-shadow: 0 3px 0 rgba(0,0,0,.25); }
+.cup-promo-btn:active { transform: translateY(2px); box-shadow: 0 1px 0 rgba(0,0,0,.25); }
+.cup-promo-btn:focus-visible { outline: 3px solid var(--promo-border); outline-offset: 2px; }
+.not-counted { display: flex; align-items: center; gap: var(--s3); background: var(--st-red-bg); border: 2px dashed var(--st-red); margin-bottom: var(--s3); }
+.not-counted-title { margin: 0; font-size: 1.1rem; font-weight: 800; color: var(--st-red); }
+.not-counted .small { margin: 4px 0 0; color: var(--text); }
