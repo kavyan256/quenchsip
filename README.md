@@ -12,6 +12,23 @@ Built for Environmental Hacks (WeMakeDevs x AWS), Waste and Energy track, 8-11 O
 
 **Tests:** 68 unit · 37 integration (API against DynamoDB Local) · 31 browser checks (headless Chrome), which pass both locally and against the deployed AWS site · load test: 500 taps in 30 s on AWS, 0 lost. How to run them: [Tests](#tests).
 
+## Screenshots
+| Set up: the water plan | Volunteer: one step at a time | Runner: a job |
+|---|---|---|
+| <img src="docs/screenshots/set-up-plan.png" width="240" alt="Water plan: jars and cups to order, which cups to buy, and links to nearby cup sellers"> | <img src="docs/screenshots/volunteer.png" width="420" alt="Volunteer page: intro, stock count, then the tap buttons"> | <img src="docs/screenshots/runner.png" width="240" alt="Runner page: take 6 jars to Food court, On my way, Delivered"> |
+
+**Live board (laptop).** Problems first. Food court is on its last jar and Asha has been assigned by Step Functions; stations nobody has counted are one card; OK stations fold away.
+
+<img src="docs/screenshots/live-board.png" width="800" alt="Live board: needs jars now, cups low, not counted yet, all good">
+
+**Event hub: the set-up checklist** (stations, order, QR links, stock check) and the **summary** after the event.
+
+<img src="docs/screenshots/hub-checklist.png" width="800" alt="Event hub set-up checklist on a laptop">
+
+<img src="docs/screenshots/summary.png" width="800" alt="Summary: water served, plastic bottles not bought, dry minutes, runner jobs">
+
+Try it yourself: open the [live site](https://d3116g1xm6u7mg.cloudfront.net), set up an event, then open a station's QR link on your phone. [How it runs on AWS](https://d3116g1xm6u7mg.cloudfront.net/architecture.html).
+
 ## AWS design decisions
 
 ### Why each service
@@ -133,7 +150,8 @@ src/lib/      DynamoDB access, events, PIN hashing (Node only)
 src/api/      Lambda handler (HTTP API, payload v2)
 src/local/    local dev server around the handler
 scripts/      create-table.js for DynamoDB Local
-web/          static site (plan, event, qr, v = volunteer)
+web/          static site (plan, event, qr, v = volunteer, r = runner, board, summary)
+docs/screenshots/   images used in this README
 test/ itest/ e2e/   unit, integration, browser tests
 template.yaml SAM template
 ```
