@@ -779,3 +779,5 @@ body.ob-open { overflow: hidden; }
 .ob-tip-row .primary-btn { min-height: 44px; padding: 0 18px; font-size: 0.95rem; }
 .ob-tip-row .ob-skip { font-size: 0.9rem; }
 .replay-link { background: transparent; border: 0; box-shadow: none; padding: 0; color: var(--accent); font-weight: 700; font-size: 0.95rem; text-decoration: underline; min-height: 44px; }
+.cup-promo-row > .cup-promo-btn:last-child:nth-child(odd) { grid-column: 1 / -1; }
+.cup-promo .cup-promo-note { margin: 0; }

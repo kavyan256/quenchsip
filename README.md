@@ -99,7 +99,7 @@ All Lambdas run Node.js 22 on arm64 (Graviton: cheaper per millisecond than x86)
    - **Live**: problems first; OK stations fold away.
    - **Summary**: water served, bottles avoided, runner times.
 3. **No accounts or PIN.** Creating an event gives a private organiser link (`…#k=<key>`). The key sits after `#`, so it is never sent in the URL; the page sends it in a header and the server stores only its hash. The link is saved in "My events" on that device; "Send to myself" shares it to another device. Without it, the hub is view only.
-4. **First time on a device:** four short welcome slides on the home page, a 4-step tour of the hub for the organiser, and a 3-line card for volunteers and runners. Each shows once; "Show the intro again" / "Show me around" replay them. Add `?intro=off` to any page address to switch them off on that device (for recordings).
+4. **First time on a device:** four short welcome slides on the home page, a 4-step tour of the hub for the organiser, and a 3-line card for volunteers and runners. Each shows once; "Show the intro again" / "Show me around" replay them. Add `?intro=off` to the home, set-up or hub address to switch off the slides, the tour and the runner card on that device (for recordings).
 5. **Volunteers and runners** open their own link or QR code. Add to home screen for an app-like icon (web app manifest).
 
 ## Architecture

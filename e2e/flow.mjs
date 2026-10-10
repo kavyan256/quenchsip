@@ -131,10 +131,11 @@ try {
   assert.equal(await page.ev(`document.querySelectorAll('#flowProgress span.on').length`), 5);
   assert.match(await page.ev(`document.getElementById('order').textContent`), /^Order about \d+–\d+ jars/);
   assert.match(await page.ev(`document.getElementById('planJars').textContent`), /^\d+–\d+$/);
-  assert.match(await page.ev(`document.querySelector('.flow-step[data-step="5"]').textContent`), /kulhad, bagasse, areca leaf or paper without plastic lining[\s\S]*Skip plastic-lined paper cups/, 'the plan says which cups');
+  assert.match(await page.ev(`document.querySelector('.flow-step[data-step="5"]').textContent`), /kulhad, bagasse or paper without plastic lining[\s\S]*Skip plastic-lined paper cups/, 'the plan says which cups');
   const sellerLinks = (root) => `[...document.querySelectorAll('${root} a[href*="google.com/maps"]')].map((a) => a.textContent + ': ' + new URL(a.href).searchParams.get('query')).join(' | ')`;
-  const sellers = 'Kulhad: kulhad wholesale near me | Bagasse: bagasse cups wholesale near me | Areca leaf: areca leaf cups wholesale near me | Paper, no plastic lining: aqueous coated paper cups wholesale near me';
+  const sellers = 'Kulhad: kulhad wholesale near me | Bagasse: bagasse cups wholesale near me | Paper, no plastic lining: aqueous coated paper cups wholesale near me';
   assert.equal(await page.ev(sellerLinks('.cup-promo')), sellers, 'the plan links to nearby cup sellers on Maps');
+  assert.match(await page.ev(`document.querySelector('.cup-promo').textContent`), /bring their own bottle/, 'and the free option');
   assert.equal(await page.ev(`document.getElementById('stations').textContent`), '4', '2,000 people -> 4 stations suggested');
   assert.match(await page.ev(`document.getElementById('planLine').textContent`), /^Spring Fest · Today .* · 2,000 people$/);
   await page.ev(`document.getElementById('create').click()`);
@@ -163,7 +164,7 @@ try {
   await waitFor(page, `document.getElementById('subtitle').textContent.includes('10:30 am')`);
   assert.notEqual(await page.ev(`document.getElementById('subtitle').textContent`), subtitleBefore);
   assert.equal(await page.ev(`document.getElementById('fineStatus').textContent`), 'Saved ✓');
-  assert.match(await page.ev(`document.querySelector('#step2 .cup-line').textContent`), /kulhad, bagasse, areca leaf or paper without plastic lining/);
+  assert.match(await page.ev(`document.querySelector('#step2 .cup-line').textContent`), /kulhad, bagasse or paper without plastic lining/);
   assert.equal(await page.ev(sellerLinks('#step2')), sellers, 'the hub links to the same sellers');
   step('set up, one question per screen (back works), opens the hub: 4 stations, checklist 1 of 4');
 

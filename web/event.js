@@ -185,7 +185,7 @@ async function saveEvent(patch, status) {
 $('shareOrder').addEventListener('click', async () => {
   const t = orderTotals(data.plan.total);
   const when = data.event.startsAt ? dayTime(data.event.startsAt) : '';
-  await shareText(`Hello! For ${data.event.name}${when ? ` (${when})` : ''}, please deliver ${nf(t.jarsHigh)} sealed 20 L drinking-water jars and ${nf(t.cupsHigh)} cups (kulhad, bagasse, areca leaf or paper without plastic lining; please no plastic-lined paper cups). Thank you.`, `${data.event.name}: water order`);
+  await shareText(`Hello! For ${data.event.name}${when ? ` (${when})` : ''}, please deliver ${nf(t.jarsHigh)} sealed 20 L drinking-water jars and ${nf(t.cupsHigh)} cups (kulhad, bagasse or paper without plastic lining; please no plastic-lined paper cups). Thank you.`, `${data.event.name}: water order`);
   if (!data.event.setup?.ordered) await saveEvent({ setup: { ordered: true } });
 });
 $('markOrdered').addEventListener('click', () => saveEvent({ setup: { ordered: !data.event.setup?.ordered } }));

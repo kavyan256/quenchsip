@@ -4,6 +4,7 @@ import { api, param, clockTime } from './api.js';
 import { rememberEvent } from './store.js';
 import { mountArt } from './art.js';
 import { DEFAULT_LITRES_PER_PERSON_HR, JAR_LITRES, CUP_LITRES, PEOPLE_PER_OUTLET } from './core/plan.js';
+import './onboarding.js'; // honours ?intro=off here too (for recordings)
 
 const $ = (id) => document.getElementById(id);
 const STEPS = 5;
