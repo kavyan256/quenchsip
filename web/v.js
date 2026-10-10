@@ -1,4 +1,4 @@
-import { api, param, escape } from './api.js';
+import { api, param, escape, clockTime } from './api.js';
 import { newTapId } from './core/tap.js';
 import { outcome, retryDelay, queueSummary } from './core/sync.js';
 import { saveTap, stationTaps, pruneSent } from './queue.js';
@@ -14,7 +14,7 @@ const linkToken = param('t'); // the secret in this station's QR link
 const DOUBLE_TAP_MS = 3000;
 const lastPress = {};
 
-const time = (iso) => new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+const time = clockTime;
 const TAP_KEYS = { swap: 'jarSwapped', last_jar: 'lastJar', cups_low: 'cupsLow', stocked: 'stocked' };
 const tapLabel = (x) => (x.type === 'stocked' ? t('stockedTap', { jars: x.jars, cups: x.cups }) : t(TAP_KEYS[x.type]));
 let stationInfo = null;

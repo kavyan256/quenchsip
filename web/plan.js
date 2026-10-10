@@ -1,6 +1,6 @@
 // Set up: one question per screen (name, people, when, weather), then the water plan as the payoff.
 // Only the name is typed; everything else is a tap with a sensible default.
-import { api, param } from './api.js';
+import { api, param, clockTime } from './api.js';
 import { rememberEvent } from './store.js';
 import { mountArt } from './art.js';
 import { DEFAULT_LITRES_PER_PERSON_HR, JAR_LITRES, CUP_LITRES, PEOPLE_PER_OUTLET } from './core/plan.js';
@@ -28,7 +28,7 @@ const checkRadio = (name, value) => {
 };
 const nf = (n) => n.toLocaleString('en-IN');
 const dayLabel = (d) => d.toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' });
-const timeLabel = (d) => d.toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' });
+const timeLabel = clockTime;
 
 const suggestedStations = (p) => Math.max(2, Math.ceil(p / PEOPLE_PER_OUTLET));
 const suggestedRunners = (s) => Math.max(1, Math.ceil(s / 3));

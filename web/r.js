@@ -1,4 +1,4 @@
-import { api, param, escape } from './api.js';
+import { api, param, escape, clockTime } from './api.js';
 import { JOB_STATES } from './core/dispatch.js';
 import { t, applyStatic, languageButton } from './i18n.js';
 import { mountArt } from './art.js';
@@ -11,7 +11,7 @@ const POLL_MS = 4000;
 let shownJobId = null;
 let lastData = null;
 
-const time = (iso) => new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+const time = clockTime;
 
 function feedback(kind, text) {
   $('feedback').className = `feedback ${kind}`;

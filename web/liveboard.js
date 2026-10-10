@@ -1,10 +1,10 @@
 // Live board markup, shared by board.html (laptop) and the Live tab of the event hub.
-import { escape } from './api.js';
+import { escape, clockTime } from './api.js';
 import { boardView, ago, STATUS } from './core/board.js';
 import { jobLine } from './core/dispatch.js';
 import { svg, statusIcon } from './art.js';
 
-const time = (ms) => new Date(ms).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+const time = clockTime;
 
 function detail(t, now) {
   const p = t.projection;

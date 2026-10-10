@@ -1,4 +1,4 @@
-import { api, param } from './api.js';
+import { api, param, clockTime } from './api.js';
 import { boardMarkup, legendMarkup } from './liveboard.js';
 
 const $ = (id) => document.getElementById(id);
@@ -11,7 +11,7 @@ $('legend').innerHTML = legendMarkup();
 let data = null;
 let lastOk = 0;
 
-const time = (ms) => new Date(ms).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+const time = clockTime;
 
 function render() {
   if (!data) return;

@@ -126,6 +126,7 @@ try {
   assert.match(orgKey, /^[a-z0-9]{24}$/, 'organiser link carries the private key');
   await waitFor(page, `document.getElementById('stationsLine').textContent.startsWith('4 stations')`, 15000);
   assert.match(await page.ev(`document.getElementById('progressText').textContent`), /1 of 4 done/);
+  assert.match(await page.ev(`document.getElementById('subtitle').textContent`), /^\w{3}, \d{1,2} \w{3} · \d{1,2}:\d{2} (am|pm)–\d{1,2}:\d{2} (am|pm) · 2,000 people$/, 'same time format as set up');
   assert.match(await page.ev(`document.querySelector('#step2 .cup-line').textContent`), /kulhad, bagasse, areca leaf or paper without plastic lining/);
   assert.equal(await page.ev(sellerLinks('#step2')), sellers, 'the hub links to the same sellers');
   step('set up, one question per screen (back works), opens the hub: 4 stations, checklist 1 of 4');

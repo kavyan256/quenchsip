@@ -1,5 +1,5 @@
 // Event hub: Set up (checklist), Live (board), Summary.
-import { api, escape, param } from './api.js';
+import { api, escape, param, clockTime, dayTime } from './api.js';
 import { organiserKey, organiserLink, rememberEvent } from './store.js';
 import { boardMarkup } from './liveboard.js';
 import { mountSummary } from './summary-view.js';
@@ -22,7 +22,7 @@ const nf = (n) => Number(n).toLocaleString('en-IN');
 // An order is for the whole event: round the total, not each station.
 const orderTotals = (t) => ({ jarsLow: Math.ceil(t.litresLow / 20), jarsHigh: Math.ceil(t.litresHigh / 20), cupsLow: Math.ceil(t.litresLow / 0.2), cupsHigh: Math.ceil(t.litresHigh / 0.2) });
 const shortList = (names, max = 4) => (names.length <= max ? names.join(', ') : `${names.slice(0, max).join(', ')} and ${names.length - max} more`);
-const time = (ms) => new Date(ms).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+const time = clockTime;
 // Each link carries its station's or runner's token (only in the organiser's view of the event).
 const withToken = (url, item) => (item.token ? `${url}&t=${item.token}` : url);
 const stationUrl = (s) => withToken(`${location.origin}/v.html?e=${eventId}&s=${s.id}`, s);
@@ -115,7 +115,7 @@ function renderHeader() {
   document.title = `${event.name} · Quench`;
   $('title').textContent = event.name;
   const when = event.startsAt
-    ? `${new Date(event.startsAt).toLocaleDateString([], { weekday: 'short', day: 'numeric', month: 'short' })} · ${time(Date.parse(event.startsAt))}–${time(Date.parse(event.startsAt) + event.hourCount * 3600000)}`
+    ? `${new Date(event.startsAt).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' })} · ${time(Date.parse(event.startsAt))}–${time(Date.parse(event.startsAt) + event.hourCount * 3600000)}`
     : `${event.hourCount} h`;
   $('subtitle').textContent = `${when} · ${nf(event.attendees)} people`;
   $('qrLink').href = canEdit ? `qr.html?e=${eventId}#k=${key}` : `qr.html?e=${eventId}`;
@@ -175,7 +175,7 @@ async function saveEvent(patch, status) {
 
 $('shareOrder').addEventListener('click', async () => {
   const t = orderTotals(data.plan.total);
-  const when = data.event.startsAt ? new Date(data.event.startsAt).toLocaleString([], { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '';
+  const when = data.event.startsAt ? dayTime(data.event.startsAt) : '';
   await shareText(`Hello! For ${data.event.name}${when ? ` (${when})` : ''}, please deliver ${nf(t.jarsHigh)} sealed 20 L drinking-water jars and ${nf(t.cupsHigh)} cups (kulhad, bagasse, areca leaf or paper without plastic lining; please no plastic-lined paper cups). Thank you.`, `${data.event.name}: water order`);
   if (!data.event.setup?.ordered) await saveEvent({ setup: { ordered: true } });
 });

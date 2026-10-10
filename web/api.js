@@ -41,3 +41,7 @@ export const loadPin = (eventId) => {
 
 export const escape = (s) => String(s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 export const param = (name) => new URLSearchParams(location.search).get(name);
+
+// One time format everywhere: "2:05 pm", and "Sat, 10 Oct, 2:05 pm" when the day matters.
+export const clockTime = (x) => new Date(x).toLocaleTimeString('en-IN', { hour: 'numeric', minute: '2-digit' });
+export const dayTime = (x) => new Date(x).toLocaleString('en-IN', { weekday: 'short', day: 'numeric', month: 'short', hour: 'numeric', minute: '2-digit' });
