@@ -8,6 +8,7 @@
 // Deterministic for a given seed. Used by the demo page and unit tests. All assumptions are in DEFAULTS.
 import { project } from './projection.js';
 import { JAR_LITRES } from './plan.js';
+import { jarsToSend } from './dispatch.js';
 
 export const DEFAULTS = {
   minutes: 180, // a 3-hour evening
@@ -27,7 +28,7 @@ export const DEFAULTS = {
   startJars: 5, // full jars at each station at the start, including the one on the tap
   runners: 3,
   tripMin: 8, // one way from the store to a station
-  jarsPerTrip: 4,
+  jarsPerTrip: 6, // WhatsApp: the lead sends a full trolley every time (Quench uses the app's own rule, see send())
   readDelayMin: 4, // WhatsApp: time until the lead reads and acts on a message
   lastJarMessageRate: 0.6, // WhatsApp: share of "last jar" moments that someone messages about
   tapRate: 0.9, // Quench: share of swaps and last-jar moments that volunteers tap
@@ -84,12 +85,16 @@ export function simulate(policy, overrides = {}) {
   const frames = [];
   let jobs = 0;
 
+  const projectAt = (i, t) =>
+    project(st[i].app, { now: T0 + t * 60000, clock: { live: true, start: T0 }, planned: { highLph: plannedLph[i] * 1.2, lowLph: plannedLph[i] * 0.8 }, runnerTripMin: cfg.tripMin });
   const send = (i, t) => {
     const r = runners.find((x) => x.freeAt <= t);
     if (!r || st[i].openJob) return false;
     r.freeAt = t + 2 * cfg.tripMin;
     st[i].openJob = true;
-    deliveries.push({ station: i, at: t + cfg.tripMin, jars: cfg.jarsPerTrip });
+    // Quench sends what the real app would (about 2 hours at the station's rate, 2 to 6 jars).
+    const jars = policy === 'quench' ? jarsToSend(projectAt(i, t)) : cfg.jarsPerTrip;
+    deliveries.push({ station: i, at: t + cfg.tripMin, jars });
     jobs++;
     return true;
   };
@@ -160,7 +165,7 @@ export function simulate(policy, overrides = {}) {
     if (policy === 'quench' && t % 2 === 0) {
       const alerts = st
         .map((s, i) => {
-          const p = project(s.app, { now: T0 + t * 60000, clock: { live: true, start: T0 }, planned: { highLph: plannedLph[i] * 1.2, lowLph: plannedLph[i] * 0.8 }, runnerTripMin: cfg.tripMin });
+          const p = projectAt(i, t);
           const lastJar = Boolean(s.app.lastJarAt) && !s.app.restocks.some((r) => r.at > s.app.lastJarAt);
           return { i, need: p.alert || p.quiet || lastJar || s.dry, dryAt: p.dryAt ? Date.parse(p.dryAt) : Infinity };
         })

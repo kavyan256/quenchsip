@@ -16,8 +16,18 @@ Parameters:
     Default: ''
     Description: Optional. Email to notify when a tap lands in the dead-letter queue (confirm the email AWS sends)
 
+  DomainName:
+    Type: String
+    Default: ''
+    Description: Optional. Your own address for the site, e.g. quench.example.dev (point a CNAME at the CloudFront domain)
+  CertificateArn:
+    Type: String
+    Default: ''
+    Description: Optional. ACM certificate for DomainName; it must be in us-east-1 (CloudFront's rule)
+
 Conditions:
   HasAlertEmail: !Not [!Equals [!Ref AlertEmail, '']]
+  HasDomain: !And [!Not [!Equals [!Ref DomainName, '']], !Not [!Equals [!Ref CertificateArn, '']]]
 
 Globals:
   Function:
@@ -326,6 +336,14 @@ Resources:
       DistributionConfig:
         Enabled: true
         Comment: Quench website and API
+        # Your own domain (optional): served next to the default *.cloudfront.net address.
+        Aliases: !If [HasDomain, [!Ref DomainName], !Ref AWS::NoValue]
+        ViewerCertificate: !If
+          - HasDomain
+          - AcmCertificateArn: !Ref CertificateArn
+            SslSupportMethod: sni-only
+            MinimumProtocolVersion: TLSv1.2_2021
+          - !Ref AWS::NoValue
         DefaultRootObject: index.html
         HttpVersion: http2and3
         PriceClass: PriceClass_200 # includes India
@@ -380,7 +398,7 @@ Outputs:
     Value: !Ref Table
   WebUrl:
     Description: The site; the API is at /api on the same address
-    Value: !Sub https://${WebDistribution.DomainName}
+    Value: !If [HasDomain, !Sub 'https://${DomainName}', !Sub 'https://${WebDistribution.DomainName}']
   WebBucketName:
     Value: !Ref WebBucket
   DistributionId:

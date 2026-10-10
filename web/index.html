@@ -12,12 +12,21 @@
 <body>
   <main class="narrow home">
     <div class="brand"><img src="icon.svg" alt="" width="36" height="36"><span>Quench</span></div>
+
     <section class="hero-card">
-      <div class="hero-art"><span class="art xl" data-art="drop"></span><span class="art lg" data-art="jar"></span><span class="art" data-art="cup"></span></div>
-      <p class="eyebrow">Water for plastic-free events</p>
-      <h1 class="hero">Refill stations instead of bottles, without stations running dry.</h1>
-      <a class="primary-btn big" href="plan.html">Set up an event's water</a>
+      <div class="hero-text">
+        <p class="eyebrow">Water for plastic-free events</p>
+        <h1 class="hero">Refill stations that don't run dry.</h1>
+        <p class="hero-sub">Plan, track and restock water at your event, so nobody needs a plastic bottle. No app, no login.</p>
+        <div class="hero-actions">
+          <a class="primary-btn big" href="plan.html">Set up an event's water</a>
+          <a class="secondary-btn" href="demo.html">See it in 30 seconds</a>
+        </div>
+      </div>
+      <div class="hero-art" aria-hidden="true"><span class="art xl" data-art="drop"></span><span class="art lg" data-art="jar"></span><span class="art" data-art="cup"></span></div>
     </section>
+
+    <p class="hero-fact"><strong>2,000 people, one afternoon:</strong> switching from plastic bottles to kulhads or bagasse cups keeps 3,000 to 6,000 bottles, about 30 to 78 kg of plastic, out of the bin.</p>
 
     <section id="mine" hidden>
       <h2 class="q">My events</h2>
@@ -25,17 +34,31 @@
     </section>
 
     <section class="how">
-      <h2 class="q">How it works</h2>
+      <div class="how-head"><h2 class="q">How it works</h2><button type="button" class="replay-link" id="replayIntro">Watch the intro</button></div>
       <ol class="how-list">
-        <li><span class="art" data-art="calendar"></span><span><strong>Plan in 30 seconds</strong><span class="small">How many jars and cups to order.</span></span></li>
-        <li><span class="art" data-art="phone"></span><span><strong>Volunteers tap</strong><span class="small">Scan a QR code at the station; tap when a jar is changed.</span></span></li>
-        <li><span class="art" data-art="runner"></span><span><strong>Runners go early</strong><span class="small">Sent before a station runs dry.</span></span></li>
-        <li><span class="art" data-art="bottleNo"></span><span><strong>See the impact</strong><span class="small">Litres served and plastic bottles avoided.</span></span></li>
+        <li><span class="how-n">1</span><span class="art" data-art="calendar"></span><span><strong>Plan in 30 seconds</strong><span class="small">How many jars and cups to order.</span></span></li>
+        <li><span class="how-n">2</span><span class="art" data-art="phone"></span><span><strong>Volunteers tap</strong><span class="small">Scan a QR code at the station; tap when a jar is changed.</span></span></li>
+        <li><span class="how-n">3</span><span class="art" data-art="runner"></span><span><strong>Runners go early</strong><span class="small">Sent before a station runs dry.</span></span></li>
+        <li><span class="how-n">4</span><span class="art" data-art="bottleNo"></span><span><strong>See the impact</strong><span class="small">Litres served and plastic bottles avoided.</span></span></li>
       </ol>
     </section>
 
-    <p><button type="button" class="replay-link" id="replayIntro">Show the intro again</button></p>
-    <p class="links"><a href="demo.html">See it in 30 seconds (simulation) →</a><br><a href="architecture.html">How it runs on AWS →</a></p>
+    <section class="why" aria-labelledby="whyTitle">
+      <figure class="why-photo">
+        <img src="img/bottles-river.jpg" alt="Plastic bottles caught in reeds at the edge of a river" width="1400" height="1048" loading="lazy">
+        <div class="why-overlay"><p class="eyebrow">Why it matters</p><h2 id="whyTitle">Bottles for travel. Refills for events.</h2></div>
+        <figcaption>Photo: Ivan Radic, <a href="https://commons.wikimedia.org/wiki/File:Plastic_bottles_polluting_the_river_(51172162326).jpg" rel="noopener">Wikimedia Commons</a>, <a href="https://creativecommons.org/licenses/by/2.0/" rel="noopener">CC BY 2.0</a></figcaption>
+      </figure>
+      <ul class="why-facts">
+        <li><span class="art" data-art="pin"></span><span><strong>India emits the most plastic pollution in the world.</strong><span class="small">9.3 million tonnes a year, about a fifth of the world's total. <a href="https://www.downtoearth.org.in/amp/story/waste/india-tops-plastic-pollution-rankings-emitting-a-fifth-of-global-plastic-waste" rel="noopener">Nature, 2024</a></span></span></li>
+        <li><span class="art" data-art="bottleNo"></span><span><strong>Bottled water is full of plastic.</strong><span class="small">About 240,000 tiny particles per litre, and more the longer bottles sit in the sun. <a href="https://globalnews.ca/news/10213135/bottled-water-nanoplastics/" rel="noopener">PNAS, 2024</a></span></span></li>
+        <li><span class="art" data-art="cup"></span><span><strong>Ordinary paper cups are lined with plastic.</strong><span class="small">Hot drinks pull microplastics out of the lining. Use kulhad, bagasse or unlined paper. <a href="https://kgpchronicle.iitkgp.ac.in/?p=6258" rel="noopener">IIT Kharagpur</a></span></span></li>
+      </ul>
+    </section>
+
+    <footer class="home-foot">
+      <a href="demo.html">Simulation</a><span aria-hidden="true">·</span><a href="architecture.html">How it runs on AWS</a><span aria-hidden="true">·</span><a href="https://github.com/kavyan256/quenchsip" rel="noopener">GitHub</a>
+    </footer>
   </main>
   <script type="module" src="home.js"></script>
 </body>

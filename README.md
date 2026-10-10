@@ -8,7 +8,7 @@ Quench is a water control room for plastic-free events. When an event replaces p
 
 Built for Environmental Hacks (WeMakeDevs x AWS), Waste and Energy track, 8-11 Oct 2026.
 
-**Live:** https://d3116g1xm6u7mg.cloudfront.net (AWS, ap-south-1 Mumbai)
+**Live:** https://quench.kavyan.dev (AWS, ap-south-1 Mumbai; also https://d3116g1xm6u7mg.cloudfront.net)
 
 **Tests:** 70 unit · 40 integration (API against DynamoDB Local) · 32 browser scenarios with 112 assertions (headless Chrome), run locally and against the deployed AWS site (31 there; one needs a local server) · load test: 500 taps in 30 s on AWS, 0 lost. How to run them: [Tests](#tests).
 
@@ -27,7 +27,7 @@ Built for Environmental Hacks (WeMakeDevs x AWS), Waste and Energy track, 8-11 O
 
 <img src="docs/screenshots/summary.png" width="800" alt="Summary: water served, plastic bottles avoided, dry minutes, runner jobs">
 
-Try it yourself: open the [live site](https://d3116g1xm6u7mg.cloudfront.net), set up an event, then open a station's QR link on your phone. [How it runs on AWS](https://d3116g1xm6u7mg.cloudfront.net/architecture.html).
+Try it yourself: open the [live site](https://quench.kavyan.dev), set up an event, then open a station's QR link on your phone. [How it runs on AWS](https://d3116g1xm6u7mg.cloudfront.net/architecture.html).
 
 ## AWS design decisions
 
@@ -136,6 +136,8 @@ python3 scripts/clear_test_events.py        # list test events in the live table
 
 The site and the API share one CloudFront address: the site from S3, and `/api/*` forwarded to API Gateway. The page uses `/api` when it is not on localhost or a Wi-Fi address, so nothing needs configuring after deploy. Remove everything with `sam delete`.
 
+**Own domain (optional).** Request an ACM certificate for it in **us-east-1** (CloudFront's rule), add ACM's validation CNAME and a CNAME from your name to the CloudFront domain (DNS only if you use Cloudflare), then deploy with `--parameter-overrides DomainName=quench.example.dev CertificateArn=arn:aws:acm:us-east-1:…`. Ours is `quench.kavyan.dev` (saved in samconfig.toml).
+
 ## Tests
 ```bash
 npm test             # unit (70): plan maths, projection, dispatch, validation, key hashing
@@ -195,11 +197,13 @@ Each status has its own colour and its words on the tile, so it does not rely on
 Every 2 minutes, **EventBridge Scheduler** runs the projector Lambda (`src/api/projector.js`). It finds live events through an index (`PK = EVENTS`, no table scan), saves each station's projection and `alertSince`, and logs one JSON line per run to CloudWatch. Locally, `npm run scheduler` does the same on a timer.
 
 **Runner dispatch** (`src/lib/dispatch.js`, state machine in `template.yaml`). When a station needs jars (a "Last jar" tap, or the projection says it runs dry before a runner could get there) and has no open job, a job is opened and a Step Functions execution starts:
-assign the free runner who has waited longest. The state machine starts only when a runner is free: if all are busy the job waits ("Waiting for a free runner" on the board) and the 2-minute check starts it once one is free, so waiting costs no state transitions. Events with no runners get no jobs. If the free runner is taken at the same moment, it retries every 60 s for about 10 min → wait for "On my way" (180 s, then reassign to someone else) → wait for "Delivered" (45 min, then close as not confirmed). The runner's taps resume the execution with its task token (never sent to browsers). "Delivered" restocks the station, which clears "Last jar" and moves the run-dry time. How many jars: about an hour at the station's rate minus what is left, 1 to 6.
+assign the free runner who has waited longest. The state machine starts only when a runner is free: if all are busy the job waits ("Waiting for a free runner" on the board) and the 2-minute check starts it once one is free, so waiting costs no state transitions. Events with no runners get no jobs. If the free runner is taken at the same moment, it retries every 60 s for about 10 min → wait for "On my way" (180 s, then reassign to someone else) → wait for "Delivered" (45 min, then close as not confirmed). The runner's taps resume the execution with its task token (never sent to browsers). "Delivered" restocks the station, which clears "Last jar" and moves the run-dry time. How many jars: about 2 hours at the station's rate minus what is left, 2 to 6 (a trolley load).
 
 **Summary** (`summary.html?e=<id>`): litres = jars swapped × 20; "up to N bottles" = litres ÷ 0.5, PET at 10-13 g per bottle; dry minutes (added up by the scheduled check while a station is past its run-dry time); stations stocked before the start; runner jobs and median times; CSV download; "Use as next year's plan".
 
-**Simulation** (`demo.html`, `src/core/sim.js`): the same 3-hour evening minute by minute, with a WhatsApp group (volunteers message on last jar sometimes and when empty; the lead reads after a delay) and with Quench (real projection code, missed taps modelled). Over 20 evenings: typical group 83 vs Quench 10 dry station-minutes at 90% taps; a very disciplined group 20 vs 11; at 70% taps the disciplined group does as well or better. These are model results, not event data.
+**Simulation** (`demo.html`, `src/core/sim.js`): the same 3-hour evening minute by minute, with a WhatsApp group (volunteers message on last jar sometimes and when empty; the lead reads after a delay) and with Quench (real projection code, missed taps modelled). Quench sends what the app would (its real jars-per-trip rule); the WhatsApp lead sends a full 6-jar load every time. Over 20 evenings at 90% taps: typical group 55 vs Quench 5 dry station-minutes; a very disciplined group 9 vs 4. At 70% taps the very disciplined group does better (9 vs 16). These are model results, not event data.
+
+The simulation also changed the product: with the old rule (top a station up to about 1 hour, at least 1 jar) Quench lost to the disciplined group in every run, because at the peak runners spent their time carrying 1-2 jars. Runner time, not jars, is the scarce thing, so a delivery now covers about 2 hours at the station's rate, 2 to 6 jars.
 
 ## API
 | Method | Path | Who |

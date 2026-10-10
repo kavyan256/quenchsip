@@ -12,14 +12,17 @@ export const JOB_STATES = {
 export const OPEN_STATES = new Set(['waiting', 'assigned', 'acked']);
 
 export const MAX_JARS_PER_TRIP = 6; // what one runner can move in one trip (trolley); adjustable
-const COVER_MIN = 60; // send enough for about the next hour
+export const MIN_JARS_PER_TRIP = 2; // never send a runner across the ground with a single jar
+const COVER_MIN = 120; // each delivery should last about 2 hours at the station's own rate
 
-// How many jars to send: enough for about an hour at the station's rate, minus what is still there.
-// At least 1, at most what one runner can carry.
+// How many jars to send: enough for about 2 hours at the station's rate, minus what is still there.
+// Runner time is the scarce thing at a busy event, not jars: small top-ups mean more trips, and at the peak
+// the next runner may not reach this station for a long time. The simulation (src/core/sim.js) showed a
+// 1-hour top-up losing to a WhatsApp group; 2 hours with at least 2 jars wins in most runs.
 export function jarsToSend({ intervalMin, jarsLeft }) {
-  const perHour = intervalMin > 0 ? Math.ceil(COVER_MIN / intervalMin) : 2;
-  const need = perHour - (jarsLeft ?? 0);
-  return Math.min(MAX_JARS_PER_TRIP, Math.max(1, need));
+  const needed = intervalMin > 0 ? Math.ceil(COVER_MIN / intervalMin) : MIN_JARS_PER_TRIP;
+  const need = needed - (jarsLeft ?? 0);
+  return Math.min(MAX_JARS_PER_TRIP, Math.max(MIN_JARS_PER_TRIP, need));
 }
 
 // Free runner who has waited longest since their last job; never one already tried for this job.

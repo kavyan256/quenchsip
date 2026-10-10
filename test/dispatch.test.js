@@ -1,12 +1,12 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { jarsToSend, pickRunner, dispatchDecision, median, jobLine, MAX_JARS_PER_TRIP } from '../src/core/dispatch.js';
+import { jarsToSend, pickRunner, dispatchDecision, median, jobLine, MAX_JARS_PER_TRIP, MIN_JARS_PER_TRIP } from '../src/core/dispatch.js';
 
-test('jars to send: about an hour at the station rate, minus what is left, 1 to max', () => {
-  assert.equal(jarsToSend({ intervalMin: 15, jarsLeft: 1 }), 3); // 4 per hour - 1
-  assert.equal(jarsToSend({ intervalMin: 30, jarsLeft: 5 }), 1, 'at least one');
-  assert.equal(jarsToSend({ intervalMin: 5, jarsLeft: 0 }), MAX_JARS_PER_TRIP, 'one runner can only carry so much');
-  assert.equal(jarsToSend({ intervalMin: null, jarsLeft: null }), 2, 'no rate known: 2');
+test('jars to send: about 2 hours at the station rate, minus what is left, 2 to max', () => {
+  assert.equal(jarsToSend({ intervalMin: 30, jarsLeft: 1 }), 3); // 4 jars in 2 hours - 1 left
+  assert.equal(jarsToSend({ intervalMin: 60, jarsLeft: 5 }), MIN_JARS_PER_TRIP, 'never a single jar');
+  assert.equal(jarsToSend({ intervalMin: 7, jarsLeft: 1 }), MAX_JARS_PER_TRIP, 'a busy station gets a full load');
+  assert.equal(jarsToSend({ intervalMin: null, jarsLeft: null }), MIN_JARS_PER_TRIP, 'no rate known: the minimum');
 });
 
 test('pick the free runner who has waited longest, skipping ones already tried', () => {

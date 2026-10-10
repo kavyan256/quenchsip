@@ -724,13 +724,6 @@ legend.ask + * { margin-top: 0; }
   #tab-setup > .keep-link { margin-top: var(--s2); }
   #tab-live .tiles { grid-template-columns: repeat(auto-fill, minmax(260px, 1fr)); }
 
-  /* Home: hero and "My events" side by side, how it works in one row. */
-  main.home { max-width: 1120px; display: grid; grid-template-columns: 1.1fr 1fr; gap: 0 var(--s6); align-items: start; }
-  main.home > .brand, main.home > .how, main.home > .links { grid-column: 1 / -1; }
-  main.home > #mine h2.q { margin-top: 0; }
-  main.home:has(#mine[hidden]) { grid-template-columns: 1fr; }
-  main.home:has(#mine[hidden]) .hero-card { max-width: 720px; }
-  main.home .how-list { grid-template-columns: repeat(4, 1fr); }
 
   /* Summary: stats three across, wider page. */
   #summaryMount .totals, #mount .totals { grid-template-columns: repeat(3, 1fr); }
@@ -781,3 +774,64 @@ body.ob-open { overflow: hidden; }
 .replay-link { background: transparent; border: 0; box-shadow: none; padding: 0; color: var(--accent); font-weight: 700; font-size: 0.95rem; text-decoration: underline; min-height: 44px; }
 .cup-promo-row > .cup-promo-btn:last-child:nth-child(odd) { grid-column: 1 / -1; }
 .cup-promo .cup-promo-note { margin: 0; }
+
+/* ---------- Home ---------- */
+.home .hero-card { display: flex; flex-direction: column-reverse; gap: var(--s4); margin-bottom: var(--s4); }
+.home .hero-art { margin: 0; align-items: flex-end; }
+.home .hero { font-size: 2rem; line-height: 1.12; letter-spacing: -0.02em; }
+.home .hero-sub { font-size: 1.05rem; line-height: 1.45; color: var(--muted); margin: 0 0 var(--s4); max-width: 34ch; }
+.home .hero-actions { display: flex; flex-direction: column; gap: var(--s2); }
+.home .hero-actions .primary-btn.big { margin: 0; justify-content: center; align-items: center; text-decoration: none; }
+.secondary-btn { display: inline-flex; justify-content: center; align-items: center; min-height: 56px; padding: 0 var(--s5); border-radius: 16px;
+  background: var(--surface); color: var(--accent); border: 2px solid var(--accent); font-weight: 800; font-size: 1.05rem; text-decoration: none; }
+.secondary-btn:active { transform: translateY(2px); }
+.hero-fact { margin: 0 0 var(--s5); padding: var(--s3) var(--s4); border-left: 4px solid var(--accent); background: var(--surface); border-radius: 0 12px 12px 0; color: var(--muted); }
+.hero-fact strong { color: var(--text); }
+.how-head { display: flex; justify-content: space-between; align-items: baseline; gap: var(--s3); }
+.how-head h2.q { margin-bottom: var(--s3); }
+.how-list li { position: relative; }
+.how-n { flex: none; width: 26px; height: 26px; border-radius: 99px; background: var(--accent); color: var(--accent-text); font-weight: 900; font-size: 0.9rem; display: grid; place-items: center; }
+.how-list li .art { flex: none; width: 44px; height: 44px; }
+.home-foot { display: flex; flex-wrap: wrap; gap: var(--s2) var(--s3); justify-content: center; margin: var(--s6) 0 var(--s4); padding-top: var(--s4); border-top: 1px solid var(--border); color: var(--muted); }
+.home-foot a { font-weight: 700; }
+@media (max-width: 520px) { .home-foot > span { display: none; } .home-foot { gap: var(--s2) var(--s5); font-size: 0.95rem; } }
+
+/* Home: why it matters */
+.why { margin-top: var(--s6); }
+.why-photo { position: relative; margin: 0; border-radius: 20px; overflow: hidden; }
+.why-photo img { display: block; width: 100%; height: 260px; object-fit: cover; object-position: center 60%; }
+.why-overlay { position: absolute; inset: 0; display: flex; flex-direction: column; justify-content: flex-end; padding: var(--s5);
+  background: linear-gradient(to top, rgb(8 19 15 / 0.85), rgb(8 19 15 / 0.15) 60%, transparent); }
+.why-overlay .eyebrow { color: #a7f3d0; margin: 0 0 6px; }
+.why-overlay h2 { color: #fff; font-size: 1.7rem; line-height: 1.15; font-weight: 900; margin: 0 0 var(--s4); }
+.why-photo figcaption { position: absolute; right: 10px; bottom: 6px; font-size: 0.62rem; color: rgb(255 255 255 / 0.45); transition: color 150ms; }
+.why-photo figcaption:hover, .why-photo figcaption:focus-within { color: rgb(255 255 255 / 0.9); }
+.why-photo figcaption a { color: inherit; text-decoration-color: rgb(255 255 255 / 0.3); }
+.why-facts { list-style: none; padding: 0; margin: var(--s4) 0 0; display: grid; gap: var(--s3); }
+.why-facts li { display: flex; gap: var(--s3); align-items: flex-start; background: var(--surface); border: 1px solid var(--border); border-radius: 16px; padding: var(--s4); }
+.why-facts li .art { flex: none; width: 40px; height: 40px; }
+.why-facts li > span:last-child { display: flex; flex-direction: column; gap: 4px; }
+.why-facts strong { font-size: 1.02rem; line-height: 1.3; }
+
+@media (min-width: 1024px) {
+  /* Home: text and big illustrations side by side; steps as 4 numbered cards. */
+  main.home { max-width: 1120px; }
+  .home .hero-card { flex-direction: row; align-items: center; gap: var(--s6); padding: var(--s6) var(--s7); }
+  .home .hero-text { flex: 1.2; }
+  .home .hero { font-size: 3rem; }
+  .home .hero-sub { font-size: 1.25rem; }
+  .home .hero-art { flex: 1; justify-content: center; margin: 0; }
+  .home .hero-art .art.xl { width: 190px; height: 190px; }
+  .home .hero-art .art.lg { width: 130px; height: 130px; }
+  .home .hero-art .art:not(.xl):not(.lg) { width: 96px; height: 96px; }
+  .home .hero-actions { flex-direction: row; }
+  .home .hero-actions > * { flex: none; width: auto; padding-left: var(--s6); padding-right: var(--s6); }
+  .home .hero-actions .primary-btn.big { display: inline-flex; width: auto; min-height: 56px; }
+  .home #mine .event-list { display: grid; grid-template-columns: 1fr 1fr; gap: 0 var(--s4); }
+  .home .how-list { grid-template-columns: repeat(4, 1fr); }
+  .home .how-list li { flex-direction: column; align-items: flex-start; background: var(--surface); border: 1px solid var(--border); border-radius: 18px; padding: var(--s4); gap: var(--s2); }
+  .why-photo img { height: 340px; }
+  .why-overlay { padding: var(--s6) var(--s7); }
+  .why-overlay h2 { font-size: 2.4rem; }
+  .why-facts { grid-template-columns: repeat(3, 1fr); }
+}
