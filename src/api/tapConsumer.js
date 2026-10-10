@@ -9,8 +9,8 @@ export async function handler(event) {
   const batchItemFailures = [];
   for (const record of event.Records || []) {
     try {
-      const { eventId, stationId, tap } = JSON.parse(record.body);
-      const out = await recordTap(eventId, stationId, tap);
+      const { eventId, stationId, tap, expiresAt } = JSON.parse(record.body);
+      const out = await recordTap(eventId, stationId, tap, expiresAt);
       console.log(JSON.stringify({ tap: tap.uuid, type: tap.type, duplicate: out.duplicate }));
     } catch (err) {
       if (err instanceof TapError || (err instanceof HttpError && err.status < 500) || err instanceof SyntaxError) {

@@ -122,3 +122,22 @@ test('taps that arrive out of order (SQS does not keep order) never move the sta
   assert.ok(Date.parse(s.lastTapAt) > Date.parse(at(3)), 'lastTapAt stays on the newest tap');
   assert.equal(s.stockCount, 2, 'both taps still counted');
 });
+
+test('every item gets a TTL: 90 days after the event ends (taps: after they happened)', async () => {
+  const { data } = await call('POST', '/events', {
+    name: 'TTL Fest', startsAt: '2026-11-01T10:00:00.000Z', attendees: 500, startHour: 10, hourCount: 3,
+    litresPerPersonHr: { low: 0.25, high: 0.5 }, stations: [{ name: 'Gate' }], pin: '2468',
+  });
+  const { GetCommand, QueryCommand } = await import('@aws-sdk/lib-dynamodb');
+  const { db, TABLE } = await import('../src/lib/db.js');
+  const items = (await db.send(new QueryCommand({ TableName: TABLE, KeyConditionExpression: 'PK = :p', ExpressionAttributeValues: { ':p': `EVT#${data.id}` } }))).Items;
+  const end = Date.parse('2026-11-01T13:00:00.000Z') / 1000;
+  for (const it of items) assert.equal(it.expiresAt, end + 90 * 86400, `${it.SK} expires 90 days after the event ends`);
+  const index = (await db.send(new GetCommand({ TableName: TABLE, Key: { PK: 'EVENTS', SK: `2026-11-01T10:00:00.000Z#${data.id}` } }))).Item;
+  assert.equal(index.expiresAt, end + 86400, 'the live-events index entry goes a day after the end');
+  const sid = items.find((x) => x.type === 'station').SK.slice(4);
+  const at = new Date().toISOString();
+  await call('POST', `/events/${data.id}/stations/${sid}/taps`, { uuid: newTapId(), type: 'swap', deviceTs: at });
+  const tap = (await db.send(new QueryCommand({ TableName: TABLE, KeyConditionExpression: 'PK = :p AND begins_with(SK, :t)', ExpressionAttributeValues: { ':p': `EVT#${data.id}`, ':t': 'TAP#' } }))).Items[0];
+  assert.ok(Math.abs(tap.expiresAt - (Math.floor(Date.parse(tap.tappedAt) / 1000) + 90 * 86400)) <= 1, 'tap expires 90 days after it happened');
+});

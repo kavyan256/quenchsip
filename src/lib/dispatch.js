@@ -8,7 +8,7 @@
 // Locally (no STATE_MACHINE_ARN) jobs are assigned directly and timeouts are not simulated.
 import { GetCommand, QueryCommand, TransactWriteCommand, UpdateCommand } from '@aws-sdk/lib-dynamodb';
 import { db, TABLE } from './db.js';
-import { HttpError, getEvent } from './events.js';
+import { HttpError, getEvent, expiryAfter } from './events.js';
 import { newId } from './pin.js';
 import { boardView } from '../core/board.js';
 import { jarsToSend, pickRunner, dispatchDecision, OPEN_STATES } from '../core/dispatch.js';
@@ -80,6 +80,7 @@ export async function startDispatch(eventId, stationId, reason, now = Date.now()
     excluded: [],
     attempts: 0,
     createdAt: new Date(now).toISOString(),
+    expiresAt: expiryAfter(new Date(now).toISOString()),
   };
   try {
     await db.send(

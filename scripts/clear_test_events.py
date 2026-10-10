@@ -104,7 +104,8 @@ def main():
             if not start:
                 break
     # Entries in the live-event index point at these events too.
-    index = scan_all(table, FilterExpression="PK = :e", ExpressionAttributeValues={":e": {"S": "EVENTS"}}, ProjectionExpression="PK, SK, id")
+    # Index entries outside the event's partition: the live-events index and each owner's "My events" list.
+    index = scan_all(table, FilterExpression="PK = :e OR begins_with(PK, :o)", ExpressionAttributeValues={":e": {"S": "EVENTS"}, ":o": {"S": "OWNER#"}}, ProjectionExpression="PK, SK, id")
     keys += [{"PK": i["PK"], "SK": i["SK"]} for i in index if i.get("id", {}).get("S") in ids]
 
     for k in range(0, len(keys), 25):

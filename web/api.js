@@ -12,6 +12,11 @@ export class ApiError extends Error {
   }
 }
 
+// The signed-in organiser's token, when a page has imported auth.js (organiser pages only; volunteer and
+// runner pages never sign in). Sent as "Authorization: Bearer"; the API verifies it.
+let tokenSource = null;
+export const setTokenSource = (fn) => { tokenSource = fn; };
+
 // token: the secret from a volunteer's or runner's QR link (…&t=<token>).
 export async function api(method, path, { body, pin, key, token, timeoutMs = 10000 } = {}) {
   const headers = {};
@@ -19,6 +24,12 @@ export async function api(method, path, { body, pin, key, token, timeoutMs = 100
   if (pin) headers['x-organiser-pin'] = pin;
   if (key) headers['x-organiser-key'] = key;
   if (token) headers['x-access-token'] = token;
+  if (tokenSource) {
+    try {
+      const t = await tokenSource();
+      if (t) headers.authorization = `Bearer ${t}`;
+    } catch {}
+  }
   let res;
   try {
     res = await fetch(API + path, { method, headers, body: body ? JSON.stringify(body) : undefined, signal: AbortSignal.timeout(timeoutMs) });

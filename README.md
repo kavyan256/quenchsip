@@ -10,7 +10,7 @@ Built for Environmental Hacks (WeMakeDevs x AWS), Waste and Energy track, 8-11 O
 
 **Live:** https://quench.kavyan.dev (AWS, ap-south-1 Mumbai; also https://d3116g1xm6u7mg.cloudfront.net)
 
-**Tests:** 70 unit · 40 integration (API against DynamoDB Local) · 32 browser scenarios with 112 assertions (headless Chrome), run locally and against the deployed AWS site (31 there; one needs a local server) · load test: 500 taps in 30 s on AWS, 0 lost. How to run them: [Tests](#tests).
+**Tests:** 70 unit · 45 integration (API against DynamoDB Local) · 32 browser scenarios with 117 assertions (headless Chrome), run locally and against the deployed AWS site (31 there; one needs a local server) · load test: 500 taps in 30 s on AWS, 0 lost. How to run them: [Tests](#tests).
 
 ## Screenshots
 | Set up: the water plan | Volunteer: one step at a time | Runner: a job |
@@ -40,13 +40,16 @@ Try it yourself: open the [live site](https://quench.kavyan.dev), set up an even
 | A runner ignores a job | **Step Functions (Standard)** | Each job is one execution: assign → wait for "On my way" (3 min, else reassign) → wait for "Delivered" (45 min). The waits use task tokens, so nothing polls and nothing runs while waiting. A runner's tap resumes the execution. |
 | Store events, stations, taps | **DynamoDB, on demand** | One table, one partition per event (`PK`/`SK`), so an event is one query. Live events are listed through `PK = EVENTS`, never a table scan. On-demand billing means an idle app costs nothing. |
 | Nobody floods the open routes | **API Gateway throttling** | Anyone can create an event, so the API is capped at 50 requests a second (bursts of 100). The tested peak, 500 taps in 30 s, is about 17 a second. |
+| Organiser accounts, without running a login server | **Amazon Cognito** | Email + password, email verification, refresh tokens. The API checks the ID token's signature against the pool's public keys; no SDK needed in the browser or the Lambda. |
+| Old data cleans itself up | **DynamoDB TTL** | Every item carries `expiresAt`: 90 days after the event ends (a day for the demo account). |
 | Website and API on one address | **S3 + CloudFront** | The site comes from a private S3 bucket (Origin Access Control); `/api/*` is forwarded to API Gateway. One https address, so phones need no CORS preflight and service workers work. |
 | Infrastructure as code | **AWS SAM** | One `template.yaml`; `npm run deploy` builds it, `sam delete` removes all of it. |
 
 All Lambdas run Node.js 22 on arm64 (Graviton: cheaper per millisecond than x86).
 
 ### Security
-- **No passwords to leak.** The organiser's key is random and lives in their private link after `#`, so it never reaches server or CloudFront logs. Only its scrypt hash (with salt) is stored, and the API never returns it.
+- **Accounts where it matters (Amazon Cognito).** Planning and viewing are open; anything stored (creating and editing events) needs a signed-in organiser. The API verifies the Cognito ID token itself and takes the user id only from the verified token. Per-account caps (20 active events; the public demo account 5, deleted after a day) mean nobody can run up the bill.
+- **The organiser link has no password to leak.** Its key is random and lives after `#`, so it never reaches server or CloudFront logs. Only its scrypt hash (with salt) is stored, and the API never returns it.
 - **Each QR link has its own secret.** Volunteers and runners don't log in, so each station and runner has a random 16-character token in its QR link. The server checks it in constant time before a tap is queued. Runner actions also check that the job is assigned to that runner. Details: [Who can do what](#api).
 - **Step Functions task tokens never leave AWS.** The runner's phone sends "Delivered" with its own link token, and the API looks up the task token server-side.
 - **Least privilege per function** (`template.yaml`):
@@ -98,7 +101,7 @@ All Lambdas run Node.js 22 on arm64 (Graviton: cheaper per millisecond than x86)
    - **Set up**: a checklist that ticks itself: stations (rename, mark busy spots), order (share with supplier on WhatsApp), links (print QR sheet or share on WhatsApp), stock check (fills in as volunteers count).
    - **Live**: problems first; OK stations fold away.
    - **Summary**: water served, bottles avoided, runner times.
-3. **No accounts or PIN.** Creating an event gives a private organiser link (`…#k=<key>`). The key sits after `#`, so it is never sent in the URL; the page sends it in a header and the server stores only its hash. The link is saved in "My events" on that device; "Send to myself" shares it to another device. Without it, the hub is view only.
+3. **Accounts only where data is stored.** Anyone can plan, run the simulation and view event links without an account. **Creating (storing) an event needs a free account** (Amazon Cognito: email + password, email code). Judges can use the demo account **judge@quench.kavyan.dev / QuenchJudge2026** ("Fill in the demo account" on the sign-in screen): it runs at most 5 events at once, and its events are deleted after a day. Signed in, "My events" and editing work from any device. Creating an event also gives a private organiser link (`…#k=<key>`). The key sits after `#`, so it is never sent in the URL; the page sends it in a header and the server stores only its hash. The link is saved in "My events" on that device; "Send to myself" shares it to another device. Without it, the hub is view only.
 4. **First time on a device:** four short welcome slides on the home page, a 4-step tour of the hub for the organiser, and a 3-line card for volunteers and runners. Each shows once; "Show the intro again" / "Show me around" replay them. Add `?intro=off` to the home, set-up or hub address to switch off the slides, the tour and the runner card on that device (for recordings).
 5. **Volunteers and runners** open their own link or QR code. Add to home screen for an app-like icon (web app manifest).
 
@@ -141,11 +144,11 @@ The site and the API share one CloudFront address: the site from S3, and `/api/*
 ## Tests
 ```bash
 npm test             # unit (70): plan maths, projection, dispatch, validation, key hashing
-npm run test:int     # integration (40): API handler against DynamoDB Local
-npm run test:e2e     # browser (32 scenarios, 112 assertions): plan, PIN, QR, taps, offline, Hindi, board, stock, dispatch, summary (needs api + serve running)
+npm run test:int     # integration (45): API handler against DynamoDB Local
+npm run test:e2e     # browser (32 scenarios, 117 assertions): plan, PIN, QR, taps, offline, Hindi, board, stock, dispatch, summary (needs api + serve running)
 node scripts/load-test.mjs https://<site>/api 500 30   # 500 taps in 30 s, checks none are lost
 # against the deployed site:
-WEB_URL=https://<site> API_URL=https://<site>/api npm run test:e2e
+E2E_EMAIL=<test account> E2E_PASSWORD=<its password> WEB_URL=https://<site> API_URL=https://<site>/api npm run test:e2e   # signs in through Cognito
 ```
 
 ## Layout
@@ -218,8 +221,10 @@ The simulation also changed the product: with the old rule (top a station up to 
 | GET | `/events/{id}/runners/{rid}` | runner (`x-access-token` from the runner link) |
 | POST | `/events/{id}/jobs/{jid}/ack`, `/events/{id}/jobs/{jid}/done` | the assigned runner, with their token |
 
-**Who can do what (no logins, by design: volunteers and runners just scan a QR code).**
-- **Organiser:** a random key in their private link (`#k=…`, after the `#` so it never reaches server logs). Only its scrypt hash is stored.
+**Who can do what.**
+- **Anyone:** plan, simulate, and view an event from its link (read-only).
+- **Organiser (signed in):** Amazon Cognito user pool, email + password with an emailed code. The browser sends the Cognito ID token; the API verifies it itself (RS256 signature against the pool's public keys, issuer, audience, `token_use`, expiry, in `src/lib/auth.js`) and takes the user id from the verified token only. Creating an event needs it; the owner can edit from any device. Each account runs at most 20 events at once (the demo account 5, deleted after a day).
+- **Co-organisers:** the owner's private link (`#k=…`, after the `#` so it never reaches server logs; only its scrypt hash is stored) also allows editing that one event.
 - **Volunteers and runners:** station and runner ids are public (the board shows them), so an id alone grants nothing. Each station and runner has its own random 16-character token, only in their QR link (`&t=…`).
   - The server checks the token, compared in constant time, before a tap is queued and on every runner action.
   - On top of that, "On my way" and "Delivered" are refused unless the job is assigned to that runner.
@@ -227,11 +232,11 @@ The simulation also changed the product: with the old rule (top a station up to 
 - Tokens are only returned to the organiser (they print the QR codes). Stations and runners from before tokens existed have none and stay open, so links already printed keep working.
 - Step Functions task tokens never leave the server.
 - **Before real users:**
-  - Role policies with Cedar, so it's one policy file instead of checks in code.
+  - Role policies with Cedar (organiser, co-organiser, volunteer, runner) in one policy file instead of checks in code.
   - Token rotation (a new QR code if one leaks).
   - Per-user rate limits (today there is one limit for the whole API).
   - CloudWatch log retention (logs are kept forever by default).
-  - Left out of the hackathon build on purpose, so judges can try every role from their own event.
+  - Volunteers and runners deliberately never sign in: they scan a QR code mid-event.
 
 ## Assumptions in the plan
 | Value | Default | Source |

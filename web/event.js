@@ -6,11 +6,13 @@ import { mountSummary } from './summary-view.js';
 import { shareText, copyText, downloadReminder } from './share.js';
 import { mountArt, svg } from './art.js';
 import { maybeTour, startTour } from './onboarding.js';
+import './auth.js'; // sends the signed-in organiser's token, so the owner can edit from any device
 
 const $ = (id) => document.getElementById(id);
 const eventId = param('e');
 const key = organiserKey(eventId);
-const canEdit = Boolean(key);
+// The organiser link's key, or (after loading) the signed-in owner's account. See applyEditMode().
+let canEdit = Boolean(key);
 const POLL_MS = 5000;
 const STALE_MS = 30000;
 
@@ -121,7 +123,7 @@ function renderHeader() {
     ? `${new Date(event.startsAt).toLocaleDateString('en-IN', { weekday: 'short', day: 'numeric', month: 'short' })} · ${time(Date.parse(event.startsAt))}–${time(Date.parse(event.startsAt) + event.hourCount * 3600000)}`
     : `${event.hourCount} h`;
   $('subtitle').textContent = `${when} · ${nf(event.attendees)} people`;
-  $('qrLink').href = canEdit ? `qr.html?e=${eventId}#k=${key}` : `qr.html?e=${eventId}`;
+  $('qrLink').href = key ? `qr.html?e=${eventId}#k=${key}` : `qr.html?e=${eventId}`;
   $('fullBoard').href = `board.html?e=${eventId}`;
 }
 
@@ -144,6 +146,7 @@ function renderLive() {
 // ---------- Data ----------
 async function load() {
   data = await api('GET', `/events/${eventId}`, { key });
+  if (data.canEdit && !canEdit) applyEditMode(true);
   lastOk = Date.now();
   rememberEvent({ id: eventId, name: data.event.name, startsAt: data.event.startsAt, key });
   renderHeader();
@@ -293,6 +296,15 @@ $('addRunner').addEventListener('submit', (e) => {
   });
 });
 
+// Edit controls on or off. The owner's sign-in can switch them on after the first load.
+function applyEditMode(on) {
+  canEdit = on;
+  $('viewOnly').hidden = on;
+  $('keepLink').hidden = !(on && key); // the shareable organiser link exists only on the device that has it
+  $('replayTour').hidden = !on;
+  if (on) for (const el of document.querySelectorAll('[data-edit]')) el.disabled = false;
+}
+
 // ---------- Start ----------
 if (!eventId) {
   $('title').textContent = 'No event in the link';
@@ -300,9 +312,7 @@ if (!eventId) {
   $('loadError').hidden = false;
 } else {
   mountArt();
-  $('viewOnly').hidden = canEdit;
-  $('keepLink').hidden = !canEdit;
-  $('replayTour').hidden = !canEdit;
+  applyEditMode(canEdit);
   $('replayTour').addEventListener('click', () => { showTab('setup'); startTour(); });
   showTab(tab);
   poll();

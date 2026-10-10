@@ -5,6 +5,7 @@ import { PutCommand, UpdateCommand } from '@aws-sdk/lib-dynamodb';
 import { handler } from '../src/api/handler.js';
 import { db, TABLE } from '../src/lib/db.js';
 import { newTapId } from '../src/core/tap.js';
+import { organiserToken } from './link.js';
 
 const call = async (method, path, body, headers = {}) => {
   const res = await handler({ rawPath: path, requestContext: { http: { method } }, headers, body: body ? JSON.stringify(body) : undefined });
@@ -17,7 +18,7 @@ async function setup() {
   const { data } = await call('POST', '/events', {
     name: 'Link Fest', attendees: 1000, startHour: 0, hourCount: 3, startsAt: new Date(Date.now() - 20 * 60000).toISOString(),
     stations: [{ name: 'Gate' }, { name: 'Stage' }], runners: [{ name: 'Asha' }, { name: 'Ravi' }],
-  });
+  }, { authorization: `Bearer ${organiserToken(`links-${Math.random().toString(36).slice(2)}@quench.test`)}` });
   const org = (await call('GET', `/events/${data.id}`, undefined, { 'x-organiser-key': data.key })).data;
   return { id: data.id, key: data.key, org };
 }

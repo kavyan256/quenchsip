@@ -5,6 +5,11 @@ import { rememberEvent } from './store.js';
 import { mountArt } from './art.js';
 import { DEFAULT_LITRES_PER_PERSON_HR, JAR_LITRES, CUP_LITRES, PEOPLE_PER_OUTLET } from './core/plan.js';
 import './onboarding.js'; // honours ?intro=off here too (for recordings)
+import { currentUser } from './auth.js';
+import { openAuthSheet } from './auth-ui.js';
+
+// Planning is free; saving the event (it's stored and runs on AWS) needs an account.
+const signInToSave = () => openAuthSheet({ title: 'Sign in to save this event', sub: 'Planning is free. Saving and running an event needs an account.', cta: 'Sign in and create event' });
 
 const $ = (id) => document.getElementById(id);
 const STEPS = 5;
@@ -208,6 +213,7 @@ $('setup').addEventListener('submit', async (e) => {
     nameOk();
     return;
   }
+  if (!currentUser() && !(await signInToSave())) return; // closed the sheet: the plan stays as it is
   const start = eventStart();
   const stations =
     carried.stations && carried.stations.length === counts.stations
@@ -233,10 +239,12 @@ $('setup').addEventListener('submit', async (e) => {
     rememberEvent({ id, name, startsAt: start.toISOString(), key });
     location.replace(`event.html?e=${id}#k=${key}`);
   } catch (err) {
-    $('createStatus').textContent = err.message;
-    $('createStatus').classList.add('error');
     $('create').disabled = false;
     $('create').textContent = 'Create event';
+    // Signed out meanwhile (expired session): sign in again, then try once more.
+    if (err.status === 401 && (await signInToSave())) return $('setup').requestSubmit();
+    $('createStatus').textContent = err.message;
+    $('createStatus').classList.add('error');
   }
 });
 

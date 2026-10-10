@@ -87,6 +87,22 @@ async function apiCall(method, url, body, headers = {}) {
   return JSON.parse(out);
 }
 
+// Organiser account for this run. Locally the dev server signs tokens for any email (no Cognito);
+// against AWS, E2E_EMAIL / E2E_PASSWORD are a real (pre-verified) Cognito account.
+const E2E_EMAIL = process.env.E2E_EMAIL || `e2e-${Math.random().toString(36).slice(2)}@quench.test`;
+const E2E_PASSWORD = process.env.E2E_PASSWORD || 'local-any-password1';
+async function organiserIdToken() {
+  if (!process.env.WEB_URL) return (await apiCall('POST', `${API}/dev/token`, { email: E2E_EMAIL })).idToken;
+  const cfg = await apiCall('GET', `${API}/config`);
+  const body = JSON.stringify({ ClientId: cfg.clientId, AuthFlow: 'USER_PASSWORD_AUTH', AuthParameters: { USERNAME: E2E_EMAIL, PASSWORD: E2E_PASSWORD } });
+  const args = ['-s', '-X', 'POST', `https://cognito-idp.${cfg.region}.amazonaws.com/`, '-H', 'content-type: application/x-amz-json-1.1', '-H', 'x-amz-target: AWSCognitoIdentityProviderService.InitiateAuth', '-d', body];
+  const out = await new Promise((resolve, reject) => execFile('curl', args, (err, stdout) => (err ? reject(err) : resolve(stdout))));
+  const token = JSON.parse(out).AuthenticationResult?.IdToken;
+  if (!token) throw new Error(`Could not sign in the e2e account: ${out}`);
+  return token;
+}
+let organiserTokenCache = null;
+
 const createdEvents = [];
 try {
   await sleep(1500);
@@ -138,8 +154,16 @@ try {
   assert.match(await page.ev(`document.querySelector('.cup-promo').textContent`), /bring their own bottle/, 'and the free option');
   assert.equal(await page.ev(`document.getElementById('stations').textContent`), '4', '2,000 people -> 4 stations suggested');
   assert.match(await page.ev(`document.getElementById('planLine').textContent`), /^Spring Fest · Today .* · 2,000 people$/);
+  // Planning needs no account; saving the event does: the sign-in sheet opens, with the judges' demo account offered.
   await page.ev(`document.getElementById('create').click()`);
-  await waitFor(page, `location.pathname === '/event.html'`, 15000);
+  await waitFor(page, `document.querySelector('.au-sheet') !== null`);
+  assert.match(await page.ev(`document.getElementById('auTitle').textContent`), /Sign in to save this event/);
+  assert.match(await page.ev(`document.querySelector('.au-demo').textContent`), /judge@quench\.kavyan\.dev/);
+  await page.ev(`document.querySelector('[data-demo]').click()`);
+  assert.equal(await page.ev(`document.getElementById('auEmail').value`), 'judge@quench.kavyan.dev', '"Fill in the demo account" fills it');
+  await page.ev(`{ document.getElementById('auEmail').value = ${JSON.stringify(E2E_EMAIL)}; document.getElementById('auPass').value = ${JSON.stringify(E2E_PASSWORD)};
+    document.querySelector('.au-sheet form').requestSubmit(); }`);
+  await waitFor(page, `location.pathname === '/event.html'`, 20000);
   const params = new URL(await page.ev('location.href'));
   const eventId = params.searchParams.get('e');
   createdEvents.push(eventId);
@@ -166,7 +190,7 @@ try {
   assert.equal(await page.ev(`document.getElementById('fineStatus').textContent`), 'Saved ✓');
   assert.match(await page.ev(`document.querySelector('#step2 .cup-line').textContent`), /kulhad, bagasse or paper without plastic lining/);
   assert.equal(await page.ev(sellerLinks('#step2')), sellers, 'the hub links to the same sellers');
-  step('set up, one question per screen (back works), opens the hub: 4 stations, checklist 1 of 4');
+  step('set up, one question per screen (back works); saving asks to sign in (demo account offered); opens the hub: 4 stations, checklist 1 of 4');
 
   // Stations sheet: rename, busy spot, add a station; saves as you go.
   await page.ev(`document.getElementById('editStations').click()`);
@@ -191,7 +215,9 @@ try {
 
   // Without the key (another device): view only; edits refused by the API too.
   const viewer = await open(`${WEB}/index.html`);
-  await viewer.ev(`localStorage.removeItem('qs-my-events')`);
+  // Someone else: no saved events and not signed in.
+  const ownerAuth = await viewer.ev(`localStorage.getItem('qs-auth')`);
+  await viewer.ev(`localStorage.removeItem('qs-my-events'); localStorage.removeItem('qs-auth')`);
   await viewer.ev(`location.href = '/event.html?e=${eventId}'`);
   await sleep(1500);
   await waitFor(viewer, `document.getElementById('stationsLine').textContent !== ''`);
@@ -209,8 +235,17 @@ try {
   await viewer.ev(`location.href = '/index.html'`);
   await sleep(1200);
   assert.match(await viewer.ev(`document.getElementById('eventList').textContent`), /Spring Fest/);
+  // The owner on a new device: no link key and no local list, just signed in. Editing works; "My events" comes from the account.
+  await viewer.ev(`localStorage.removeItem('qs-my-events'); localStorage.setItem('qs-auth', ${JSON.stringify(ownerAuth)})`);
+  await viewer.ev(`location.href = '/event.html?e=${eventId}'`);
+  await sleep(1500);
+  await waitFor(viewer, `!document.getElementById('editStations').disabled && document.getElementById('viewOnly').hidden`);
+  await viewer.ev(`location.href = '/index.html'`);
+  await sleep(1500);
+  await waitFor(viewer, `document.getElementById('eventList').textContent.includes('Spring Fest')`);
+  assert.equal(await viewer.ev(`document.getElementById('acct') !== null`), true, 'the account chip shows when signed in');
   await viewer.close();
-  step('without the organiser link the hub is view only; with it, editing works and the event is in "My events"');
+  step('view only for others; the organiser link restores editing; the signed-in owner edits from any device and sees "My events"');
 
   const qr = await open(`${WEB}/qr.html?e=${eventId}#k=${orgKey}`);
   assert.equal(await qr.ev(`document.querySelectorAll('#grid .qr-card svg').length`), 5);
@@ -381,6 +416,8 @@ try {
   // Live board: an event that started 30 minutes ago.
   // 1,000 people in one zone, 3 stations: ~83 L/hr each at the low rate -> quiet after 22 min.
   const post = async (path, body, headers) => {
+    // Creating an event needs a signed-in organiser.
+    if (path === '/events') headers = { ...headers, authorization: `Bearer ${(organiserTokenCache ??= await organiserIdToken())}` };
     const out = await apiCall('POST', `${API}${path}`, body, headers);
     if (path === '/events' && out?.id) createdEvents.push(out.id);
     return out;

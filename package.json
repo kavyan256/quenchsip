@@ -6,7 +6,7 @@
   "type": "module",
   "scripts": {
     "test": "node --test test/",
-    "test:int": "DDB_ENDPOINT=http://localhost:8000 node --test itest/",
+    "test:int": "DDB_ENDPOINT=http://localhost:8000 AUTH_LOCAL_SECRET=test-only DEMO_EMAIL=judge@quench.kavyan.dev node --test itest/",
     "test:e2e": "node --experimental-websocket --no-warnings e2e/flow.mjs",
     "db:start": "docker run -d --rm --name quench-ddb -p 8000:8000 amazon/dynamodb-local -jar DynamoDBLocal.jar -inMemory -disableTelemetry",
     "db:stop": "docker stop quench-ddb",

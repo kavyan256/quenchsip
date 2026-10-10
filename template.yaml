@@ -16,6 +16,10 @@ Parameters:
     Default: ''
     Description: Optional. Email to notify when a tap lands in the dead-letter queue (confirm the email AWS sends)
 
+  DemoEmail:
+    Type: String
+    Default: judge@quench.kavyan.dev
+    Description: The shared judges' account (5 active events at most; its events are deleted after a day)
   DomainName:
     Type: String
     Default: ''
@@ -41,6 +45,10 @@ Resources:
     Type: AWS::DynamoDB::Table
     Properties:
       BillingMode: PAY_PER_REQUEST
+      # Old events clean themselves up: every item carries expiresAt (90 days after the event ends).
+      TimeToLiveSpecification:
+        AttributeName: expiresAt
+        Enabled: true
       AttributeDefinitions:
         - AttributeName: PK
           AttributeType: S
@@ -58,12 +66,51 @@ Resources:
       CorsConfiguration:
         AllowOrigins: ['*']
         AllowMethods: [GET, POST, PATCH, DELETE, OPTIONS]
-        AllowHeaders: [content-type, x-organiser-pin, x-organiser-key, x-access-token]
+        AllowHeaders: [content-type, authorization, x-organiser-pin, x-organiser-key, x-access-token]
       # Caps abuse and cost on the open routes (anyone can create an event). The peak we tested,
       # 500 taps in 30 s, is about 17 requests a second.
       DefaultRouteSettings:
         ThrottlingRateLimit: 50
         ThrottlingBurstLimit: 100
+
+  # Organiser accounts. Anything stored (creating and running an event) needs one; planning doesn't.
+  # Volunteers and runners never sign in: their QR links carry a per-station/per-runner secret.
+  UserPool:
+    Type: AWS::Cognito::UserPool
+    Properties:
+      UserPoolName: quench-organisers
+      UsernameAttributes: [email]
+      AutoVerifiedAttributes: [email]
+      AccountRecoverySetting:
+        RecoveryMechanisms:
+          - Name: verified_email
+            Priority: 1
+      Policies:
+        PasswordPolicy:
+          MinimumLength: 8
+          RequireNumbers: true
+          RequireLowercase: false
+          RequireUppercase: false
+          RequireSymbols: false
+      VerificationMessageTemplate:
+        DefaultEmailOption: CONFIRM_WITH_CODE
+        EmailSubject: Your Quench code
+        EmailMessage: 'Your Quench verification code is {####}'
+  UserPoolClient:
+    Type: AWS::Cognito::UserPoolClient
+    Properties:
+      ClientName: quench-web
+      UserPoolId: !Ref UserPool
+      GenerateSecret: false # a browser app can't keep a secret
+      ExplicitAuthFlows: [ALLOW_USER_PASSWORD_AUTH, ALLOW_REFRESH_TOKEN_AUTH]
+      PreventUserExistenceErrors: ENABLED
+      IdTokenValidity: 60
+      AccessTokenValidity: 60
+      RefreshTokenValidity: 30
+      TokenValidityUnits:
+        IdToken: minutes
+        AccessToken: minutes
+        RefreshToken: days
 
   ApiFunction:
     Type: AWS::Serverless::Function
@@ -72,6 +119,9 @@ Resources:
       Handler: api/handler.handler
       Environment:
         Variables:
+          COGNITO_USER_POOL_ID: !Ref UserPool
+          COGNITO_CLIENT_ID: !Ref UserPoolClient
+          DEMO_EMAIL: !Ref DemoEmail
           TABLE_NAME: !Ref Table
           STATE_MACHINE_ARN: !Ref DispatchStateMachine
           ACK_TIMEOUT_SECONDS: !Ref AckTimeoutSeconds
@@ -388,6 +438,10 @@ Resources:
                 AWS:SourceArn: !Sub arn:aws:cloudfront::${AWS::AccountId}:distribution/${WebDistribution}
 
 Outputs:
+  UserPoolId:
+    Value: !Ref UserPool
+  UserPoolClientId:
+    Value: !Ref UserPoolClient
   TapDeadLetterQueueUrl:
     Value: !Ref TapDeadLetterQueue
   DispatchStateMachineArn:

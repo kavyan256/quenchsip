@@ -3,7 +3,7 @@
 //   PK EVT#<id>  SK TAP#<uuid>  type, stationId, tappedAt, receivedAt, deviceTs
 import { TransactWriteCommand, UpdateCommand } from '@aws-sdk/lib-dynamodb';
 import { db, TABLE } from './db.js';
-import { HttpError } from './events.js';
+import { HttpError, expiryAfter } from './events.js';
 import { validateTap } from '../core/tap.js';
 
 const COUNTER = { swap: 'swapCount', last_jar: 'lastJarCount', cups_low: 'cupsLowCount', stocked: 'stockCount' };
@@ -37,7 +37,7 @@ async function moveForward(pk, stationId, tap) {
   }
 }
 
-export async function recordTap(eventId, stationId, input) {
+export async function recordTap(eventId, stationId, input, stationExpiresAt) {
   const tap = validateTap(input);
   const receivedAt = new Date().toISOString();
   const pk = `EVT#${eventId}`;
@@ -50,7 +50,7 @@ export async function recordTap(eventId, stationId, input) {
           {
             Put: {
               TableName: TABLE,
-              Item: { PK: pk, SK: `TAP#${tap.uuid}`, type: 'tap', tapType: tap.type, stationId, tappedAt: tap.tappedAt, receivedAt, deviceTs: tap.deviceTs, clockTrusted: tap.clockTrusted, jars: tap.jars, cups: tap.cups },
+              Item: { PK: pk, SK: `TAP#${tap.uuid}`, type: 'tap', tapType: tap.type, stationId, tappedAt: tap.tappedAt, expiresAt: Math.min(expiryAfter(tap.tappedAt), stationExpiresAt || Infinity), receivedAt, deviceTs: tap.deviceTs, clockTrusted: tap.clockTrusted, jars: tap.jars, cups: tap.cups },
               ConditionExpression: 'attribute_not_exists(SK)',
             },
           },

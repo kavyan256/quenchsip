@@ -1,7 +1,8 @@
 // Single Lambda behind API Gateway (HTTP API, payload v2). Also used by the local dev server.
 import { ValidationError } from '../core/event.js';
 import { TapError } from '../core/tap.js';
-import { HttpError, createEvent, getEvent, isOrganiser, requireLink, addStation, removeStation, addRunner, removeRunner, updateEvent, updateStation } from '../lib/events.js';
+import { userFromToken, issueLocalToken } from '../lib/auth.js';
+import { HttpError, createEvent, myEvents, getEvent, isOrganiser, requireLink, addStation, removeStation, addRunner, removeRunner, updateEvent, updateStation } from '../lib/events.js';
 import { acceptTap } from '../lib/tapQueue.js';
 import { ack, done, runnerView } from '../lib/dispatch.js';
 import { eventSummary } from '../lib/summary.js';
@@ -10,7 +11,12 @@ const ID = '([a-z0-9]{4,12})';
 // [method, path, action, success status]
 const routes = [
   ['GET', /^\/health$/, async () => ({ ok: true, service: 'quench', time: new Date().toISOString() }), 200],
-  ['POST', /^\/events$/, async ({ body }) => createEvent(body), 201],
+  // Which sign-in to use: Cognito on AWS, a local stand-in for development.
+  ['GET', /^\/config$/, async () => (process.env.AUTH_LOCAL_SECRET ? { auth: 'local' } : { auth: 'cognito', region: process.env.AWS_REGION, clientId: process.env.COGNITO_CLIENT_ID, demoEmail: process.env.DEMO_EMAIL || null }), 200],
+  ['POST', /^\/dev\/token$/, async ({ body }) => ({ idToken: issueLocalToken(body?.email) }), 200], // 404 unless AUTH_LOCAL_SECRET is set
+  // Anything stored needs an account: creating an event, and the account's own list.
+  ['POST', /^\/events$/, async ({ body, auth }) => createEvent(body, auth.user), 201],
+  ['GET', /^\/me\/events$/, async ({ auth }) => myEvents(auth.user), 200],
   // Anyone can view an event; only the organiser's view includes the QR link tokens.
   ['GET', new RegExp(`^/events/${ID}$`), async ({ params, auth }) => getEvent(params[0], { withTokens: await isOrganiser(params[0], auth) }), 200],
   ['GET', new RegExp(`^/events/${ID}/summary$`), async ({ params }) => eventSummary(params[0]), 200],
@@ -24,8 +30,8 @@ const routes = [
   // Volunteers and runners have no login: the token in their QR link (x-access-token) is their access.
   // The ids alone are public, so they grant nothing. Checked here, before a tap is queued.
   ['POST', new RegExp(`^/events/${ID}/stations/${ID}/taps$`), async ({ params, auth, body }) => {
-    await requireLink(params[0], 'STN', params[1], auth.token);
-    return acceptTap(params[0], params[1], body);
+    const station = await requireLink(params[0], 'STN', params[1], auth.token);
+    return acceptTap(params[0], params[1], body, station?.expiresAt);
   }, 201],
   ['GET', new RegExp(`^/events/${ID}/stations/${ID}/link$`), async ({ params, auth }) => {
     await requireLink(params[0], 'STN', params[1], auth.token);
@@ -64,11 +70,22 @@ export async function handler(event) {
     return json(400, { error: 'Request body is not valid JSON.' });
   }
 
+  // The signed-in organiser, from a verified Cognito ID token (never from anything else the client says).
+  // A bad or expired token only matters for requests that change something; reads stay public.
+  let user = null;
+  const bearer = /^Bearer\s+(.+)$/i.exec(headers.authorization || '')?.[1];
+  try {
+    user = await userFromToken(bearer);
+  } catch (err) {
+    if (method !== 'GET' && err instanceof HttpError) return json(err.status, { error: err.message });
+    if (!(err instanceof HttpError)) console.error(err);
+  }
+
   for (const [m, re, fn, status] of routes) {
     const match = m === method && path.match(re);
     if (!match) continue;
     try {
-      const data = await fn({ params: match.slice(1), body, auth: { pin: headers['x-organiser-pin'], key: headers['x-organiser-key'], token: headers['x-access-token'] } });
+      const data = await fn({ params: match.slice(1), body, auth: { user, pin: headers['x-organiser-pin'], key: headers['x-organiser-key'], token: headers['x-access-token'] } });
       // Some actions choose their own status: { status, body } (e.g. 202 for a queued tap).
       if (data && 'body' in data && 'status' in data) return json(data.status ?? (data.body?.duplicate ? 200 : status), data.body);
       // A retried tap that was already stored is fine: 200, not 201.

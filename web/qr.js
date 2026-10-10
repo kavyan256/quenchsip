@@ -1,6 +1,7 @@
 import qrcode from './vendor/qrcode.js';
 import { api, escape, param } from './api.js';
 import { organiserKey } from './store.js';
+import './auth.js'; // a signed-in owner gets the codes without the link key
 
 const $ = (id) => document.getElementById(id);
 const eventId = param('e');
@@ -21,10 +22,11 @@ function qrSvg(text) {
 
 async function load() {
   if (!eventId) throw new Error('No event in the link.');
-  if (!key) throw new Error('Open the QR sheet from your organiser link: volunteer and runner codes are private.');
-  const { event, stations, runners } = await api('GET', `/events/${eventId}`, { key });
+  // The organiser's link key, or their signed-in account (auth.js sends the token): codes are private.
+  const { event, stations, runners, canEdit } = await api('GET', `/events/${eventId}`, { key });
+  if (!canEdit) throw new Error('Open the QR sheet from your organiser link or sign in: volunteer and runner codes are private.');
   $('title').textContent = `${event.name}: station QR codes`;
-  $('back').href = `event.html?e=${eventId}#k=${key}`;
+  $('back').href = key ? `event.html?e=${eventId}#k=${key}` : `event.html?e=${eventId}`;
   $('grid').innerHTML = stations
     .map((s) => {
       const url = stationUrl(s);

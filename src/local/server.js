@@ -1,13 +1,16 @@
 // Local dev server: turns plain HTTP requests into API Gateway v2 events for the Lambda handler.
 // Listens on all interfaces so phones on the same Wi-Fi can reach it.
 import { createServer } from 'node:http';
-import { handler } from '../api/handler.js';
+// No Cognito locally: sign-in uses a stand-in that signs tokens with a local secret (see src/lib/auth.js).
+process.env.AUTH_LOCAL_SECRET ||= 'local-dev-only';
+process.env.DEMO_EMAIL ||= 'judge@quench.kavyan.dev';
+const { handler } = await import('../api/handler.js');
 
 const PORT = Number(process.env.PORT || 3001);
 const CORS = {
   'access-control-allow-origin': '*',
   'access-control-allow-methods': 'GET,POST,PATCH,DELETE,OPTIONS',
-  'access-control-allow-headers': 'content-type,x-organiser-pin,x-organiser-key,x-access-token',
+  'access-control-allow-headers': 'content-type,authorization,x-organiser-pin,x-organiser-key,x-access-token',
 };
 
 createServer(async (req, res) => {
