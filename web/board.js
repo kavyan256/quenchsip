@@ -1,10 +1,12 @@
 import { api, param } from './api.js';
-import { boardMarkup } from './liveboard.js';
+import { boardMarkup, legendMarkup } from './liveboard.js';
 
 const $ = (id) => document.getElementById(id);
 const eventId = param('e');
 const POLL_MS = 5000;
 const STALE_MS = 30000;
+
+$('legend').innerHTML = legendMarkup();
 
 let data = null;
 let lastOk = 0;

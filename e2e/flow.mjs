@@ -377,6 +377,7 @@ try {
   assert.deepEqual(await board.ev(tiles), ['Bravo: Needs jars now', 'Alpha: No taps: check on volunteer', 'Charlie: OK', 'Delta: OK']);
   assert.match(await board.ev(`document.getElementById('clock').textContent`), /^Live/);
   assert.equal(await board.ev(`document.querySelectorAll('.tile .st-icon svg').length`), 4, 'every tile has a drawn status icon');
+  assert.equal(await board.ev(`[...document.querySelectorAll('#legend .chip')].map((c) => c.textContent.trim()).join(' | ')`), 'Needs jars now | Not stocked | No taps | Cups low | OK', 'one compact legend row');
   assert.doesNotMatch(await board.ev(`document.getElementById('tiles').textContent + document.getElementById('summary').textContent`), /[●◐◌▲]/, 'no text glyphs');
   step('board: needs-jars first, silent station flagged, active station OK');
 

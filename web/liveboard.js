@@ -90,3 +90,15 @@ export function boardMarkup(data, now = Date.now(), { wide = true } = {}) {
     : '';
   return { clockText, summaryHtml, tilesHtml: pre + needsHtml + fineHtml };
 }
+
+// One compact row: icon, status, and a few words on when it shows.
+const LEGEND = [
+  ['needs_jars', 'Needs jars now', 'last jar, or dry before a runner arrives'],
+  ['not_stocked', 'Not stocked', 'jars and cups not counted'],
+  ['quiet', 'No taps', 'check on the volunteer'],
+  ['cups_low', 'Cups low', 'volunteer tapped "Cups low"'],
+  ['ok', 'OK', 'nothing to do'],
+];
+export function legendMarkup() {
+  return LEGEND.map(([k, label, when]) => `<li class="legend-item"><span class="chip st-${k}">${statusIcon(k)} ${escape(label)}</span><span class="small">${escape(when)}</span></li>`).join('');
+}
