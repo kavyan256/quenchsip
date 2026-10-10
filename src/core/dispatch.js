@@ -12,17 +12,22 @@ export const JOB_STATES = {
 export const OPEN_STATES = new Set(['waiting', 'assigned', 'acked']);
 
 export const MAX_JARS_PER_TRIP = 6; // what one runner can move in one trip (trolley); adjustable
-export const MIN_JARS_PER_TRIP = 2; // never send a runner across the ground with a single jar
+export const MIN_JARS_PER_TRIP = 2; // never send a runner across the ground with a single jar (unless that's all it needs)
 const COVER_MIN = 120; // each delivery should last about 2 hours at the station's own rate
+const END_BUFFER_MIN = 45; // near the end, send what's needed until closing plus this margin
 
-// How many jars to send: enough for about 2 hours at the station's rate, minus what is still there.
-// Runner time is the scarce thing at a busy event, not jars: small top-ups mean more trips, and at the peak
-// the next runner may not reach this station for a long time. The simulation (src/core/sim.js) showed a
-// 1-hour top-up losing to a WhatsApp group; 2 hours with at least 2 jars wins in most runs.
-export function jarsToSend({ intervalMin, jarsLeft }) {
-  const needed = intervalMin > 0 ? Math.ceil(COVER_MIN / intervalMin) : MIN_JARS_PER_TRIP;
-  const need = needed - (jarsLeft ?? 0);
-  return Math.min(MAX_JARS_PER_TRIP, Math.max(MIN_JARS_PER_TRIP, need));
+// How many jars to send, from the station's measured rate (minutes per jar):
+// - about 2 hours' worth, 2 to 6 jars (a trolley load). Runner time is the scarce thing at a busy event, not jars.
+// - NOT minus the jars the app thinks are left: a missed "Jar swapped" tap makes that number too high,
+//   and subtracting it sent too little exactly when it mattered.
+// - near the end of the event, only what's needed until closing plus 45 minutes.
+// Chosen with the simulation (src/core/sim.js) across 2-4 runners, 5-12 minute walks and 70-90% tapping.
+export function jarsToSend({ intervalMin, minutesLeft }) {
+  const rate = intervalMin > 0 ? intervalMin : null;
+  let jars = rate ? Math.ceil(COVER_MIN / rate) : MIN_JARS_PER_TRIP;
+  jars = Math.min(MAX_JARS_PER_TRIP, Math.max(MIN_JARS_PER_TRIP, jars));
+  if (rate && Number.isFinite(minutesLeft)) jars = Math.min(jars, Math.max(1, Math.ceil((Math.max(0, minutesLeft) + END_BUFFER_MIN) / rate)));
+  return jars;
 }
 
 // Free runner who has waited longest since their last job; never one already tried for this job.

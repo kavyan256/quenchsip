@@ -92,8 +92,8 @@ export function simulate(policy, overrides = {}) {
     if (!r || st[i].openJob) return false;
     r.freeAt = t + 2 * cfg.tripMin;
     st[i].openJob = true;
-    // Quench sends what the real app would (about 2 hours at the station's rate, 2 to 6 jars).
-    const jars = policy === 'quench' ? jarsToSend(projectAt(i, t)) : cfg.jarsPerTrip;
+    // Quench sends what the real app would (src/core/dispatch.js jarsToSend).
+    const jars = policy === 'quench' ? jarsToSend({ ...projectAt(i, t), minutesLeft: cfg.minutes - t }) : cfg.jarsPerTrip;
     deliveries.push({ station: i, at: t + cfg.tripMin, jars });
     jobs++;
     return true;
@@ -184,6 +184,7 @@ export function simulate(policy, overrides = {}) {
   return {
     policy,
     dryMinutes: st.reduce((a, s) => a + s.dryMin, 0),
+    leftover: st.reduce((a, s) => a + s.spare, 0), // full jars still at stations at the end
     stationsThatRanDry: st.filter((s) => s.dryMin > 0).length,
     litresServed: Math.round(st.reduce((a, s) => a + s.served, 0)),
     jobs,

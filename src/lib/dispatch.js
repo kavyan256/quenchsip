@@ -60,7 +60,9 @@ export async function startDispatch(eventId, stationId, reason, now = Date.now()
   if (!tile) throw new HttpError(404, 'Station not found.');
   if (tile.station.openJobId) return { started: false, jobId: tile.station.openJobId };
 
-  const hour = data.plan.rows.find((r) => r.stationId === stationId)?.byHour?.[boardView(data, now).clock.hourIndex];
+  const { clock } = boardView(data, now);
+  const hour = data.plan.rows.find((r) => r.stationId === stationId)?.byHour?.[clock.hourIndex];
+  const minutesLeft = clock.known ? (clock.end - now) / 60000 : undefined;
   const jobId = newId(8);
   const job = {
     PK: pk(eventId),
@@ -72,7 +74,7 @@ export async function startDispatch(eventId, stationId, reason, now = Date.now()
     zone: tile.station.zone,
     reason,
     state: 'waiting',
-    jars: jarsToSend(tile.projection),
+    jars: jarsToSend({ ...tile.projection, minutesLeft }),
     cups: tile.flags.cupsLow ? hour?.high?.cups ?? 0 : 0,
     dryAt: tile.projection.dryAt,
     excluded: [],
