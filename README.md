@@ -8,6 +8,56 @@ Quench is a water control room for plastic-free events. When an event replaces p
 
 Built for Environmental Hacks (WeMakeDevs x AWS), Waste and Energy track, 8-11 Oct 2026.
 
+**Live:** https://d3116g1xm6u7mg.cloudfront.net (AWS, ap-south-1 Mumbai)
+
+**Tests:** 68 unit · 37 integration (API against DynamoDB Local) · 31 browser checks (headless Chrome), which pass both locally and against the deployed AWS site · load test: 500 taps in 30 s on AWS, 0 lost. How to run them: [Tests](#tests).
+
+## AWS design decisions
+
+### Why each service
+| Need | Service | Why this one |
+|---|---|---|
+| Volunteers tap at the peak, all at once | **API Gateway → SQS → Lambda** | The API only checks the tap and queues it (202), so a burst never waits on database writes. A consumer Lambda saves taps in batches of 10. Measured on AWS: 500 taps in 30 s, 0 lost. |
+| A tap that cannot be saved must not vanish | **SQS dead-letter queue** | After 3 failed tries a tap moves to a dead-letter queue and is kept 14 days. `ReportBatchItemFailures` retries only the failed taps in a batch, not the whole batch. |
+| "Which station runs dry next?" even when nobody is tapping | **EventBridge Scheduler → Lambda** | Every 2 minutes a Lambda projects each live station's run-dry time and flags quiet stations. There's no server to keep alive, and the board and the Lambda share the same code (`src/core/projection.js`). |
+| A runner ignores a job | **Step Functions (Standard)** | Each job is one execution: assign → wait for "On my way" (3 min, else reassign) → wait for "Delivered" (45 min). The waits use task tokens, so nothing polls and nothing runs while waiting. A runner's tap resumes the execution. |
+| Store events, stations, taps | **DynamoDB, on demand** | One table, one partition per event (`PK`/`SK`), so an event is one query. Live events are listed through `PK = EVENTS`, never a table scan. On-demand billing means an idle app costs nothing. |
+| Website and API on one address | **S3 + CloudFront** | The site comes from a private S3 bucket (Origin Access Control); `/api/*` is forwarded to API Gateway. One https address, so phones need no CORS preflight and service workers work. |
+| Infrastructure as code | **AWS SAM** | One `template.yaml`; `npm run deploy` builds it, `sam delete` removes all of it. |
+
+All Lambdas run Node.js 22 on arm64 (Graviton: cheaper per millisecond than x86).
+
+### Security
+- **No passwords to leak.** The organiser's key is random and lives in their private link after `#`, so it never reaches server or CloudFront logs. Only its scrypt hash (with salt) is stored, and the API never returns it.
+- **Each QR link has its own secret.** Volunteers and runners don't log in, so each station and runner has a random 16-character token in its QR link. The server checks it in constant time before a tap is queued. Runner actions also check that the job is assigned to that runner. Details: [Who can do what](#api).
+- **Step Functions task tokens never leave AWS.** The runner's phone sends "Delivered" with its own link token, and the API looks up the task token server-side.
+- **Least privilege per function** (`template.yaml`):
+  - Every function can read and write only the Quench table.
+  - Only the API can queue taps (send to the one queue).
+  - Only the API, the projector and the tap consumer can start the dispatch state machine, and only that one.
+  - The state machine can invoke only the dispatch function.
+  - `states:SendTaskSuccess` has `Resource: '*'` because task tokens have no ARN to scope to. That's an AWS limitation, noted in the template.
+- **Taps count exactly once.** Each tap has an id made on the phone. The tap and the station counters are written in one DynamoDB transaction that only succeeds if the id is new. Retries from the offline queue, SQS redelivery or a double tap change nothing.
+- **Private bucket, https only:** S3 blocks all public access, and CloudFront redirects http to https.
+
+### Cost
+- **No always-on servers.** No EC2 and no RDS. The Lambdas aren't in a VPC, so there's no NAT gateway, which would bill by the hour even when idle. Everything is pay per request.
+- **When nobody is using it:** the projector runs every 2 minutes, about 21,600 runs a month. That's well inside the Lambda free tier (1 million requests a month).
+- **Real bill (Cost Explorer, 1-10 Oct 2026, Quench's services):**
+
+  | Service | Usage cost |
+  |---|---|
+  | Step Functions | $0.68 |
+  | DynamoDB | $0.02 |
+  | S3, API Gateway, CloudFront, CloudWatch | under $0.01 |
+
+  All of it was covered by AWS credits, so we paid $0.00. A zero-spend budget alerts on any real charge.
+- **Lesson from the bill:** the Step Functions charge came from one bug on 9 Oct. Test events with no runners re-opened jobs in a loop, about 28,000 state transitions against a free tier of 4,000 a month. Fixed on 10 Oct:
+  - Events with no runners get no jobs.
+  - An execution starts only when a runner is free (waiting is free).
+  - The tests delete their own events.
+- **Not Quench:** the account also shows about $0.52 of EBS disk (1-9 Oct), which is from an earlier project in the same account. Quench has no EC2 or EBS.
+
 ## Status
 - [x] Step 1: plan calculator (jars and cups per station per hour, low/high range, readiness check)
 - [x] Step 2: save event (organiser PIN), manage stations and runners, printable station QR codes, volunteer station page
@@ -68,9 +118,9 @@ The site and the API share one CloudFront address: the site from S3, and `/api/*
 
 ## Tests
 ```bash
-npm test             # unit: plan maths, validation, PIN hashing
-npm run test:int     # integration: API handler against DynamoDB Local
-npm run test:e2e     # browser: plan, PIN, QR, taps, offline, Hindi, board, stock, dispatch, summary (needs api + serve running)
+npm test             # unit (68): plan maths, projection, dispatch, validation, key hashing
+npm run test:int     # integration (37): API handler against DynamoDB Local
+npm run test:e2e     # browser (31 checks): plan, PIN, QR, taps, offline, Hindi, board, stock, dispatch, summary (needs api + serve running)
 node scripts/load-test.mjs https://<site>/api 500 30   # 500 taps in 30 s, checks none are lost
 # against the deployed site:
 WEB_URL=https://<site> API_URL=https://<site>/api npm run test:e2e
@@ -155,6 +205,7 @@ assign the free runner who has waited longest. The state machine starts only whe
   - Role policies with Cedar, so it's one policy file instead of checks in code.
   - Token rotation (a new QR code if one leaks).
   - Rate limits on the public routes.
+  - CloudWatch log retention (logs are kept forever by default).
   - Left out of the hackathon build on purpose, so judges can try every role from their own event.
 
 ## Assumptions in the plan
