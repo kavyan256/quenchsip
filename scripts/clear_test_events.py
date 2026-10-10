@@ -4,6 +4,7 @@
 Usage:
   python3 scripts/clear_test_events.py                 # list events whose name is in TEST_NAMES
   python3 scripts/clear_test_events.py --name "X"      # list events named X (repeatable)
+  python3 scripts/clear_test_events.py --id abc123     # list exactly these event ids (repeatable; used by the AWS e2e run)
   python3 scripts/clear_test_events.py --yes           # delete what is listed
 
 Uses the AWS CLI (profile/region below, or AWS_PROFILE / AWS_REGION), so it works behind a proxy.
@@ -57,6 +58,11 @@ def main():
         i = args.index("--name")
         names.add(args[i + 1])
         del args[i : i + 2]
+    ids_wanted = set()
+    while "--id" in args:
+        i = args.index("--id")
+        ids_wanted.add(args[i + 1])
+        del args[i : i + 2]
     names = names or TEST_NAMES
     really = "--yes" in args
 
@@ -68,7 +74,10 @@ def main():
         ProjectionExpression="PK, #n, createdAt",
         ExpressionAttributeNames={"#n": "name"},
     )
-    targets = [m for m in metas if m.get("name", {}).get("S") in names]
+    if ids_wanted:
+        targets = [m for m in metas if m["PK"]["S"][4:] in ids_wanted]
+    else:
+        targets = [m for m in metas if m.get("name", {}).get("S") in names]
     for m in sorted(targets, key=lambda x: x.get("createdAt", {}).get("S", "")):
         print(f'{m["PK"]["S"][4:]}  {m.get("createdAt", {}).get("S", "?")}  {m["name"]["S"]}')
     print(f"{len(targets)} event(s) match.")

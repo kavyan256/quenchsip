@@ -2,9 +2,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { handler } from '../src/api/handler.js';
+import { linkHeaders } from './link.js';
 
 const call = async (method, path, body, headers = {}) => {
-  const res = await handler({ rawPath: path, requestContext: { http: { method } }, headers, body: body ? JSON.stringify(body) : undefined });
+  const res = await handler({ rawPath: path, requestContext: { http: { method } }, headers: { ...(await linkHeaders(method, path, body)), ...headers }, body: body ? JSON.stringify(body) : undefined });
   return { status: res.statusCode, data: JSON.parse(res.body) };
 };
 const quick = () => ({

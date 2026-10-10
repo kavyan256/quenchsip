@@ -78,15 +78,16 @@ const step = (name) => console.log(`ok - ${name}`);
 
 // JSON call to the Quench API. Through curl when a proxy is set, because Node's fetch ignores proxies
 // (needed to reach the deployed site from networks that only allow traffic through a proxy).
-async function apiCall(method, url, body) {
+async function apiCall(method, url, body, headers = {}) {
   if (!process.env.HTTPS_PROXY || /localhost|127\.0\.0\.1/.test(url)) {
-    return (await fetch(url, { method, headers: body ? { 'content-type': 'application/json' } : {}, body: body ? JSON.stringify(body) : undefined })).json();
+    return (await fetch(url, { method, headers: { ...(body ? { 'content-type': 'application/json' } : {}), ...headers }, body: body ? JSON.stringify(body) : undefined })).json();
   }
-  const args = ['-s', '-X', method, url, ...(body ? ['-H', 'content-type: application/json', '-d', JSON.stringify(body)] : [])];
+  const args = ['-s', '-X', method, url, ...Object.entries(headers).flatMap(([k, v]) => ['-H', `${k}: ${v}`]), ...(body ? ['-H', 'content-type: application/json', '-d', JSON.stringify(body)] : [])];
   const out = await new Promise((resolve, reject) => execFile('curl', args, (err, stdout) => (err ? reject(err) : resolve(stdout))));
   return JSON.parse(out);
 }
 
+const createdEvents = [];
 try {
   await sleep(1500);
 
@@ -116,6 +117,7 @@ try {
   await waitFor(page, `location.pathname === '/event.html'`, 15000);
   const params = new URL(await page.ev('location.href'));
   const eventId = params.searchParams.get('e');
+  createdEvents.push(eventId);
   const orgKey = new URLSearchParams(params.hash.slice(1)).get('k');
   assert.match(orgKey, /^[a-z0-9]{24}$/, 'organiser link carries the private key');
   await waitFor(page, `document.getElementById('stationsLine').textContent.startsWith('4 stations')`, 15000);
@@ -165,12 +167,13 @@ try {
   await viewer.close();
   step('without the organiser link the hub is view only; with it, editing works and the event is in "My events"');
 
-  const qr = await open(`${WEB}/qr.html?e=${eventId}`);
+  const qr = await open(`${WEB}/qr.html?e=${eventId}#k=${orgKey}`);
   assert.equal(await qr.ev(`document.querySelectorAll('#grid .qr-card svg').length`), 5);
   assert.equal(await qr.ev(`document.querySelectorAll('#runnerGrid .qr-card svg').length`), 2, 'one card per runner too');
   const cards = await qr.ev(`[...document.querySelectorAll('#grid .qr-card')].map(c => ({ name: c.querySelector('.station-name').textContent, url: c.querySelector('.small:last-child').textContent }))`);
+  assert.ok(cards.every((c) => /[?&]t=[a-z0-9]{16}$/.test(c.url)), 'every QR link carries its own token');
   await qr.close();
-  step('QR sheet has one code per station');
+  step('QR sheet has one code per station, each link with its own token');
 
   for (const card of cards) {
     const v = await open(card.url);
@@ -249,6 +252,7 @@ try {
 
   // Step 4: offline queue
   const sid2 = new URL(cards[1].url).searchParams.get('s');
+  const tok2 = new URL(cards[1].url).searchParams.get('t');
   const counts2 = async () => (await apiCall('GET', `${API}/events/${eventId}`)).stations.find((s) => s.id === sid2);
   const sync = `document.getElementById('syncState').textContent`;
   const off = await open(cards[1].url);
@@ -289,7 +293,7 @@ try {
     const webDir = new URL('../web/', import.meta.url).pathname;
     const staticServer = spawn('python3', ['-m', 'http.server', String(SW_PORT), '-d', webDir], { stdio: 'ignore' });
     await sleep(1000);
-    const swUrl = `http://localhost:${SW_PORT}/v.html?e=${eventId}&s=${sid2}`;
+    const swUrl = `http://localhost:${SW_PORT}/v.html?e=${eventId}&s=${sid2}&t=${tok2}`;
     const sw = await open(swUrl);
     await waitFor(sw, 'navigator.serviceWorker.controller !== null', 8000);
     await new Promise((r) => { staticServer.once('exit', r); staticServer.kill(); });
@@ -322,7 +326,14 @@ try {
 
   // Live board: an event that started 30 minutes ago.
   // 1,000 people in one zone, 3 stations: ~83 L/hr each at the low rate -> quiet after 22 min.
-  const post = (path, body) => apiCall('POST', `${API}${path}`, body);
+  const post = async (path, body, headers) => {
+    const out = await apiCall('POST', `${API}${path}`, body, headers);
+    if (path === '/events' && out?.id) createdEvents.push(out.id);
+    return out;
+  };
+  // Test events use PIN 2468; the organiser's view includes each station's and runner's link token.
+  const orgView = (id) => apiCall('GET', `${API}/events/${id}`, undefined, { 'x-organiser-pin': '2468' });
+  const asPhone = (item) => ({ 'x-access-token': item.token });
   const live = await post('/events', {
     name: 'Board Test',
     startsAt: new Date(Date.now() - 30 * 60000).toISOString(),
@@ -334,9 +345,10 @@ try {
     stations: [{ name: 'Alpha', zone: 'Field' }, { name: 'Bravo', zone: 'Field' }, { name: 'Charlie', zone: 'Field' }, { name: 'Delta', zone: 'Field' }],
     pin: '2468',
   });
-  const liveStations = (await apiCall('GET', `${API}/events/${live.id}`)).stations;
-  const sidOf = (name) => liveStations.find((s) => s.name === name).id;
-  const tapApi = (name, type, deviceTs = new Date().toISOString(), extra = {}) => post(`/events/${live.id}/stations/${sidOf(name)}/taps`, { uuid: crypto.randomUUID(), type, deviceTs, ...extra });
+  const liveStations = (await orgView(live.id)).stations;
+  const stationOf = (name) => liveStations.find((s) => s.name === name);
+  const sidOf = (name) => stationOf(name).id;
+  const tapApi = (name, type, deviceTs = new Date().toISOString(), extra = {}) => post(`/events/${live.id}/stations/${sidOf(name)}/taps`, { uuid: crypto.randomUUID(), type, deviceTs, ...extra }, asPhone(stationOf(name)));
   // Every station confirmed 10 jars at the start (~96 min of water at the plan's busy rate).
   for (const name of ['Alpha', 'Bravo', 'Charlie', 'Delta']) await tapApi(name, 'stocked', live.startsAt ?? new Date(Date.now() - 30 * 60000).toISOString(), { jars: 10, cups: 500 });
   await tapApi('Bravo', 'last_jar');
@@ -396,10 +408,11 @@ try {
     stations: [{ name: 'North', zone: 'Field' }, { name: 'South', zone: 'Field' }, { name: 'West', zone: 'Field' }],
     pin: '2468',
   });
-  const preStations = (await apiCall('GET', `${API}/events/${pre.id}`)).stations;
-  const preSid = (name) => preStations.find((s) => s.name === name).id;
+  const preStations = (await orgView(pre.id)).stations;
+  const preStation = (name) => preStations.find((s) => s.name === name);
+  const preSid = (name) => preStation(name).id;
   for (const name of ['North', 'South']) {
-    await post(`/events/${pre.id}/stations/${preSid(name)}/taps`, { uuid: crypto.randomUUID(), type: 'stocked', jars: 8, cups: 400, deviceTs: new Date().toISOString() });
+    await post(`/events/${pre.id}/stations/${preSid(name)}/taps`, { uuid: crypto.randomUUID(), type: 'stocked', jars: 8, cups: 400, deviceTs: new Date().toISOString() }, asPhone(preStation(name)));
   }
   const preBoard = await open(`${WEB}/board.html?e=${pre.id}`);
   await waitFor(preBoard, `document.querySelectorAll('.tile').length === 2`);
@@ -408,7 +421,7 @@ try {
   assert.match(await preBoard.ev(`document.getElementById('clock').textContent`), /^Starts at/);
   step('start gate: before the start, exactly the uncounted station is listed, in one calm card');
 
-  const westPhone = await open(`${WEB}/v.html?e=${pre.id}&s=${preSid('West')}`);
+  const westPhone = await open(`${WEB}/v.html?e=${pre.id}&s=${preSid('West')}&t=${preStation('West').token}`);
   assert.equal(await westPhone.ev(`document.getElementById('stockCard').hidden`), false);
   assert.match(await westPhone.ev(`document.getElementById('stockHint').textContent`), /plan expects about \d+–\d+ jars/);
   await westPhone.ev(`document.getElementById('stockJars').value = '6'; document.getElementById('stockCups').value = '300'; document.getElementById('stockCard').requestSubmit();`);
@@ -433,16 +446,16 @@ try {
     runners: [{ name: 'Asha' }],
     pin: '2468',
   });
-  const dispData = await apiCall('GET', `${API}/events/${disp.id}`);
+  const dispData = await orgView(disp.id);
   const northId = dispData.stations[0].id;
   const ashaId = dispData.runners[0].id;
   // Stocked a minute before the gates opened.
-  await post(`/events/${disp.id}/stations/${northId}/taps`, { uuid: crypto.randomUUID(), type: 'stocked', jars: 10, cups: 400, deviceTs: new Date(Date.now() - 11 * 60000).toISOString() });
-  const runnerPage = await open(`${WEB}/r.html?e=${disp.id}&r=${ashaId}`);
+  await post(`/events/${disp.id}/stations/${northId}/taps`, { uuid: crypto.randomUUID(), type: 'stocked', jars: 10, cups: 400, deviceTs: new Date(Date.now() - 11 * 60000).toISOString() }, asPhone(dispData.stations[0]));
+  const runnerPage = await open(`${WEB}/r.html?e=${disp.id}&r=${ashaId}&t=${dispData.runners[0].token}`);
   await waitFor(runnerPage, `!document.getElementById('idle').hidden`);
   const dispBoard = await open(`${WEB}/board.html?e=${disp.id}`);
 
-  await post(`/events/${disp.id}/stations/${northId}/taps`, { uuid: crypto.randomUUID(), type: 'last_jar', deviceTs: new Date().toISOString() });
+  await post(`/events/${disp.id}/stations/${northId}/taps`, { uuid: crypto.randomUUID(), type: 'last_jar', deviceTs: new Date().toISOString() }, asPhone(dispData.stations[0]));
   await waitFor(runnerPage, `!document.getElementById('job').hidden && document.getElementById('jobWhere').textContent === 'to North (Field)'`, 20000);
   assert.match(await runnerPage.ev(`document.getElementById('jobTitle').textContent`), /^Take \d+ jars?/);
   await waitFor(dispBoard, `document.querySelector('.tile .job-chip')?.textContent.startsWith('Asha: Runner assigned')`, 15000);
@@ -486,11 +499,30 @@ try {
   await bad.close();
   step('unknown station shows a clear message');
 
+  // A copied link without its token: the public station id alone opens nothing.
+  const noToken = await open(cards[0].url.replace(/&t=[a-z0-9]+/, ''));
+  await waitFor(noToken, `document.getElementById('station').textContent === 'Link not valid'`);
+  assert.match(await noToken.ev(`document.getElementById('loadError').textContent`), /not valid. Ask the organiser/);
+  assert.equal(await noToken.ev(`document.getElementById('buttons').hidden`), true, 'no tap buttons');
+  await noToken.close();
+  const noTokenRunner = await open(`${WEB}/r.html?e=${disp.id}&r=${ashaId}`);
+  await waitFor(noTokenRunner, `!document.getElementById('loadError').hidden`);
+  assert.match(await noTokenRunner.ev(`document.getElementById('loadError').textContent`), /not valid/);
+  await noTokenRunner.close();
+  step('a link without its token (just the public id) is refused, for volunteers and runners');
+
   console.log('# e2e pass');
 } catch (err) {
   console.error('not ok -', err.message);
   process.exitCode = 1;
 } finally {
+  // On AWS, delete exactly the events this run created, so their scheduled checks and runner jobs stop.
+  if (process.env.WEB_URL && createdEvents.length) {
+    await new Promise((r) => execFile('python3', ['scripts/clear_test_events.py', ...createdEvents.flatMap((id) => ['--id', id]), '--yes'], (err, out) => {
+      console.log(err ? `# cleanup failed: ${err.message}` : `# cleanup: ${out.trim().split('\n').pop()}`);
+      r();
+    }));
+  }
   // Wait for Chrome to exit before deleting its profile, or it may still be writing files.
   await new Promise((r) => { chrome.once('exit', r); chrome.kill(); setTimeout(r, 3000); });
   try { rmSync(profile, { recursive: true, force: true, maxRetries: 3 }); } catch {}

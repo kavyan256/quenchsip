@@ -6,6 +6,7 @@ import { mountArt } from './art.js';
 const $ = (id) => document.getElementById(id);
 const eventId = param('e');
 const runnerId = param('r');
+const linkToken = param('t'); // the secret in this runner's link
 const POLL_MS = 4000;
 let shownJobId = null;
 let lastData = null;
@@ -81,17 +82,17 @@ function render(data) {
 
 async function refresh() {
   try {
-    render(await api('GET', `/events/${eventId}/runners/${runnerId}`));
+    render(await api('GET', `/events/${eventId}/runners/${runnerId}`, { token: linkToken }));
     $('loadError').hidden = true;
   } catch (err) {
-    $('loadError').textContent = err.status === 404 ? 'This runner link is not valid any more. Ask the organiser.' : err.message;
+    $('loadError').textContent = err.status === 404 || err.status === 403 ? 'This runner link is not valid any more. Ask the organiser.' : err.message;
     $('loadError').hidden = false;
   }
 }
 
 $('onMyWay').addEventListener('click', async () => {
   try {
-    await api('POST', `/events/${eventId}/jobs/${shownJobId}/ack`, { body: { runnerId } });
+    await api('POST', `/events/${eventId}/jobs/${shownJobId}/ack`, { token: linkToken, body: { runnerId } });
     feedback('ok', t('thanksOnWay'));
   } catch (err) {
     feedback('warn', err.message);
@@ -102,7 +103,7 @@ $('onMyWay').addEventListener('click', async () => {
 $('deliveredForm').addEventListener('submit', async (e) => {
   e.preventDefault();
   try {
-    const out = await api('POST', `/events/${eventId}/jobs/${shownJobId}/done`, { body: { runnerId, jars: Number($('deliveredJars').value), cups: Number($('deliveredCups').value) } });
+    const out = await api('POST', `/events/${eventId}/jobs/${shownJobId}/done`, { token: linkToken, body: { runnerId, jars: Number($('deliveredJars').value), cups: Number($('deliveredCups').value) } });
     feedback('ok', t('thanksDelivered', { jars: out.jars }));
   } catch (err) {
     feedback('warn', err.message);

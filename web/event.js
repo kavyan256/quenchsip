@@ -23,8 +23,10 @@ const nf = (n) => Number(n).toLocaleString('en-IN');
 const orderTotals = (t) => ({ jarsLow: Math.ceil(t.litresLow / 20), jarsHigh: Math.ceil(t.litresHigh / 20), cupsLow: Math.ceil(t.litresLow / 0.2), cupsHigh: Math.ceil(t.litresHigh / 0.2) });
 const shortList = (names, max = 4) => (names.length <= max ? names.join(', ') : `${names.slice(0, max).join(', ')} and ${names.length - max} more`);
 const time = (ms) => new Date(ms).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-const stationUrl = (sid) => `${location.origin}/v.html?e=${eventId}&s=${sid}`;
-const runnerUrl = (rid) => `${location.origin}/r.html?e=${eventId}&r=${rid}`;
+// Each link carries its station's or runner's token (only in the organiser's view of the event).
+const withToken = (url, item) => (item.token ? `${url}&t=${item.token}` : url);
+const stationUrl = (s) => withToken(`${location.origin}/v.html?e=${eventId}&s=${s.id}`, s);
+const runnerUrl = (r) => withToken(`${location.origin}/r.html?e=${eventId}&r=${r.id}`, r);
 const edit = (method, path, body) => api(method, path, { body, key });
 
 // ---------- Tabs ----------
@@ -116,7 +118,7 @@ function renderHeader() {
     ? `${new Date(event.startsAt).toLocaleDateString([], { weekday: 'short', day: 'numeric', month: 'short' })} · ${time(Date.parse(event.startsAt))}–${time(Date.parse(event.startsAt) + event.hourCount * 3600000)}`
     : `${event.hourCount} h`;
   $('subtitle').textContent = `${when} · ${nf(event.attendees)} people`;
-  $('qrLink').href = `qr.html?e=${eventId}`;
+  $('qrLink').href = canEdit ? `qr.html?e=${eventId}#k=${key}` : `qr.html?e=${eventId}`;
   $('fullBoard').href = `board.html?e=${eventId}`;
 }
 
@@ -138,7 +140,7 @@ function renderLive() {
 
 // ---------- Data ----------
 async function load() {
-  data = await api('GET', `/events/${eventId}`);
+  data = await api('GET', `/events/${eventId}`, { key });
   lastOk = Date.now();
   rememberEvent({ id: eventId, name: data.event.name, startsAt: data.event.startsAt, key });
   renderHeader();
@@ -186,8 +188,8 @@ $('qrLink').addEventListener('click', markLinksShared);
 $('shareLinks').addEventListener('click', async () => {
   const lines = [
     `${data.event.name}: water station links. Open yours on your phone (no app, no login).`,
-    ...data.stations.map((s) => `• ${s.name}: ${stationUrl(s.id)}`),
-    ...(data.runners.length ? ['Runners:', ...data.runners.map((r) => `• ${r.name}: ${runnerUrl(r.id)}`)] : []),
+    ...data.stations.map((s) => `• ${s.name}: ${stationUrl(s)}`),
+    ...(data.runners.length ? ['Runners:', ...data.runners.map((r) => `• ${r.name}: ${runnerUrl(r)}`)] : []),
   ];
   await shareText(lines.join('\n'), `${data.event.name}: links`);
   await markLinksShared();

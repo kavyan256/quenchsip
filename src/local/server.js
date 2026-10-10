@@ -7,7 +7,7 @@ const PORT = Number(process.env.PORT || 3001);
 const CORS = {
   'access-control-allow-origin': '*',
   'access-control-allow-methods': 'GET,POST,PATCH,DELETE,OPTIONS',
-  'access-control-allow-headers': 'content-type,x-organiser-pin,x-organiser-key',
+  'access-control-allow-headers': 'content-type,x-organiser-pin,x-organiser-key,x-access-token',
 };
 
 createServer(async (req, res) => {

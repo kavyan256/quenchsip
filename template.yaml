@@ -41,7 +41,7 @@ Resources:
       CorsConfiguration:
         AllowOrigins: ['*']
         AllowMethods: [GET, POST, PATCH, DELETE, OPTIONS]
-        AllowHeaders: [content-type, x-organiser-pin, x-organiser-key]
+        AllowHeaders: [content-type, x-organiser-pin, x-organiser-key, x-access-token]
 
   ApiFunction:
     Type: AWS::Serverless::Function
@@ -198,7 +198,7 @@ Resources:
             Default: WaitForFreeRunner
           WaitForFreeRunner:
             Type: Wait
-            Seconds: 30
+            Seconds: 60
             Next: AssignRunner
           WaitForOnMyWay:
             Type: Task

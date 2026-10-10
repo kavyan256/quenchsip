@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { jarsToSend, pickRunner, median, jobLine, MAX_JARS_PER_TRIP } from '../src/core/dispatch.js';
+import { jarsToSend, pickRunner, dispatchDecision, median, jobLine, MAX_JARS_PER_TRIP } from '../src/core/dispatch.js';
 
 test('jars to send: about an hour at the station rate, minus what is left, 1 to max', () => {
   assert.equal(jarsToSend({ intervalMin: 15, jarsLeft: 1 }), 3); // 4 per hour - 1
@@ -28,4 +28,12 @@ test('median and job wording', () => {
   assert.equal(median([]), null);
   assert.equal(jobLine({ state: 'acked', runnerName: 'Asha' }), 'Asha: Runner on the way');
   assert.equal(jobLine({ state: 'waiting' }), 'Waiting for a free runner');
+});
+
+test('dispatch decision: no runners means no job; all busy means wait (no state machine yet)', () => {
+  assert.equal(dispatchDecision([]), 'no_runners');
+  assert.equal(dispatchDecision(undefined), 'no_runners');
+  assert.equal(dispatchDecision([{ id: 'a', status: 'busy' }, { id: 'b', status: 'busy' }]), 'wait');
+  assert.equal(dispatchDecision([{ id: 'a', status: 'busy' }, { id: 'b', status: 'free' }]), 'start');
+  assert.equal(dispatchDecision([{ id: 'b', status: 'free' }], ['b']), 'wait', 'only an excluded runner is free');
 });

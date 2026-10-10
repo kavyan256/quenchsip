@@ -124,7 +124,7 @@ Each status has its own colour and its words on the tile, so it does not rely on
 Every 2 minutes, **EventBridge Scheduler** runs the projector Lambda (`src/api/projector.js`). It finds live events through an index (`PK = EVENTS`, no table scan), saves each station's projection and `alertSince`, and logs one JSON line per run to CloudWatch. Locally, `npm run scheduler` does the same on a timer.
 
 **Runner dispatch** (`src/lib/dispatch.js`, state machine in `template.yaml`). When a station needs jars (a "Last jar" tap, or the projection says it runs dry before a runner could get there) and has no open job, a job is opened and a Step Functions execution starts:
-assign the free runner who has waited longest (retry every 30 s, give up after ~10 min) → wait for "On my way" (180 s, then reassign to someone else) → wait for "Delivered" (45 min, then close as not confirmed). The runner's taps resume the execution with its task token (never sent to browsers). "Delivered" restocks the station, which clears "Last jar" and moves the run-dry time. How many jars: about an hour at the station's rate minus what is left, 1 to 6.
+assign the free runner who has waited longest. The state machine starts only when a runner is free: if all are busy the job waits ("Waiting for a free runner" on the board) and the 2-minute check starts it once one is free, so waiting costs no state transitions. Events with no runners get no jobs. If the free runner is taken at the same moment, it retries every 60 s for about 10 min → wait for "On my way" (180 s, then reassign to someone else) → wait for "Delivered" (45 min, then close as not confirmed). The runner's taps resume the execution with its task token (never sent to browsers). "Delivered" restocks the station, which clears "Last jar" and moves the run-dry time. How many jars: about an hour at the station's rate minus what is left, 1 to 6.
 
 **Summary** (`summary.html?e=<id>`): litres = jars swapped × 20; "up to N bottles" = litres ÷ 0.5, PET at 10-13 g per bottle; dry minutes (added up by the scheduled check while a station is past its run-dry time); stations stocked before the start; runner jobs and median times; CSV download; "Use as next year's plan".
 
@@ -134,13 +134,28 @@ assign the free runner who has waited longest (retry every 30 s, give up after ~
 | Method | Path | Who |
 |---|---|---|
 | GET | `/health` | anyone |
-| POST | `/events` | organiser (sets PIN) |
-| GET | `/events/{id}` | anyone with the link |
-| POST, DELETE | `/events/{id}/stations[/{sid}]`, `/events/{id}/runners[/{rid}]` | organiser (`x-organiser-pin` header) |
-| POST | `/events/{id}/stations/{sid}/taps` | volunteer (station QR link); 202 when queued on AWS |
+| POST | `/events` | organiser (returns the organiser key for their private link) |
+| GET | `/events/{id}` | anyone with the link; with `x-organiser-key` it also returns each station's and runner's link token |
+| PATCH, POST, DELETE | `/events/{id}`, `/events/{id}/stations[/{sid}]`, `/events/{id}/runners[/{rid}]` | organiser (`x-organiser-key`, or `x-organiser-pin` for older events) |
+| GET | `/events/{id}/stations/{sid}/link` | volunteer: checks their link on page load |
+| POST | `/events/{id}/stations/{sid}/taps` | volunteer (`x-access-token` from the station QR link); 202 when queued on AWS |
 | GET | `/events/{id}/summary` | anyone with the link |
-| GET | `/events/{id}/runners/{rid}` | runner (runner QR link) |
-| POST | `/events/{id}/jobs/{jid}/ack`, `/events/{id}/jobs/{jid}/done` | the assigned runner |
+| GET | `/events/{id}/runners/{rid}` | runner (`x-access-token` from the runner link) |
+| POST | `/events/{id}/jobs/{jid}/ack`, `/events/{id}/jobs/{jid}/done` | the assigned runner, with their token |
+
+**Who can do what (no logins, by design: volunteers and runners just scan a QR code).**
+- **Organiser:** a random key in their private link (`#k=…`, after the `#` so it never reaches server logs). Only its scrypt hash is stored.
+- **Volunteers and runners:** station and runner ids are public (the board shows them), so an id alone grants nothing. Each station and runner has its own random 16-character token, only in their QR link (`&t=…`).
+  - The server checks the token, compared in constant time, before a tap is queued and on every runner action.
+  - On top of that, "On my way" and "Delivered" are refused unless the job is assigned to that runner.
+  - A copied link without its token, or someone else's token, gets 403.
+- Tokens are only returned to the organiser (they print the QR codes). Stations and runners from before tokens existed have none and stay open, so links already printed keep working.
+- Step Functions task tokens never leave the server.
+- **Before real users:**
+  - Role policies with Cedar, so it's one policy file instead of checks in code.
+  - Token rotation (a new QR code if one leaks).
+  - Rate limits on the public routes.
+  - Left out of the hackathon build on purpose, so judges can try every role from their own event.
 
 ## Assumptions in the plan
 | Value | Default | Source |

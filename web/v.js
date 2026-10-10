@@ -8,6 +8,7 @@ import { mountArt } from './art.js';
 const $ = (id) => document.getElementById(id);
 const eventId = param('e');
 const stationId = param('s');
+const linkToken = param('t'); // the secret in this station's QR link
 
 // Two presses of the same button within this window are one tap (a real swap takes longer).
 const DOUBLE_TAP_MS = 3000;
@@ -62,7 +63,7 @@ async function flush() {
     for (const tap of (await stationTaps(eventId, stationId)).filter((t) => t.status === 'pending')) {
       let status;
       try {
-        await api('POST', `/events/${eventId}/stations/${stationId}/taps`, { body: { uuid: tap.uuid, type: tap.type, deviceTs: tap.at, jars: tap.jars, cups: tap.cups } });
+        await api('POST', `/events/${eventId}/stations/${stationId}/taps`, { token: linkToken, body: { uuid: tap.uuid, type: tap.type, deviceTs: tap.at, jars: tap.jars, cups: tap.cups } });
         status = 201;
       } catch (err) {
         status = err.status ?? 0;
@@ -133,7 +134,14 @@ document.addEventListener('visibilitychange', () => { if (!document.hidden) flus
 const cacheKey = `qs-station-${eventId}-${stationId}`;
 async function loadStation() {
   try {
-    const { event, stations, plan } = await api('GET', `/events/${eventId}`);
+    const [{ event, stations, plan }] = await Promise.all([
+      api('GET', `/events/${eventId}`),
+      // A link without its token (or an old copy) is caught now, not on the first tap.
+      api('GET', `/events/${eventId}/stations/${stationId}/link`, { token: linkToken }).catch((err) => {
+        if (err.status === 404) throw Object.assign(new Error('This station was removed. Ask the organiser for the new QR code.'), { status: 404 });
+        throw err;
+      }),
+    ]);
     const station = stations.find((s) => s.id === stationId);
     if (!station) throw Object.assign(new Error('This station was removed. Ask the organiser for the new QR code.'), { status: 404 });
     const planned = plan?.rows?.find((r) => r.stationId === stationId)?.total;
@@ -202,7 +210,7 @@ languageButton($('lang'), () => {
 });
 
 start().catch((err) => {
-  $('station').textContent = 'Station not found';
+  $('station').textContent = err.status === 403 ? 'Link not valid' : 'Station not found';
   $('loadError').textContent = err.message;
   $('loadError').hidden = false;
 });

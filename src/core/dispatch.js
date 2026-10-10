@@ -31,6 +31,16 @@ export function pickRunner(runners, excluded = []) {
   return free[0] || null;
 }
 
+// Whether to open a job for a station that needs jars, and whether to start its state machine now.
+//   no_runners: the event has no runners, so a job could never be assigned (the board already shows "needs jars").
+//   wait: open the job, but start the state machine only when a runner is free (the scheduled check retries),
+//         so a busy team costs nothing while it waits instead of a retry loop of state transitions.
+//   start: a runner is free now.
+export function dispatchDecision(runners, excluded = []) {
+  if (!runners?.length) return 'no_runners';
+  return pickRunner(runners, excluded) ? 'start' : 'wait';
+}
+
 // Plain words for a job on the board or the runner's screen.
 export function jobLine(job) {
   if (!job) return '';

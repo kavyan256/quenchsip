@@ -11,9 +11,9 @@ import { db, TABLE } from './db.js';
 import { HttpError, getEvent } from './events.js';
 import { newId } from './pin.js';
 import { boardView } from '../core/board.js';
-import { jarsToSend, pickRunner, OPEN_STATES } from '../core/dispatch.js';
+import { jarsToSend, pickRunner, dispatchDecision, OPEN_STATES } from '../core/dispatch.js';
 
-export const MAX_ASSIGN_ATTEMPTS = 20; // with a 30 s wait between tries: about 10 minutes
+export const MAX_ASSIGN_ATTEMPTS = 10; // with a 60 s wait between tries: about 10 minutes (only when a free runner was taken meanwhile)
 const pk = (id) => `EVT#${id}`;
 const nowIso = () => new Date().toISOString();
 
@@ -49,9 +49,13 @@ async function runnersOf(eventId) {
 
 const cancelledBecause = (err, index) => err.name === 'TransactionCanceledException' && err.CancellationReasons?.[index]?.Code === 'ConditionalCheckFailed';
 
-// Opens a job for a station unless it already has one. Returns { started, jobId }.
+// Opens a job for a station unless it already has one (or the event has no runners). Returns { started, jobId }.
+// On AWS the state machine starts only when a runner is free; otherwise the job waits and the scheduled
+// check starts it later (startWaitingJobs), so waiting costs no Step Functions state transitions.
 export async function startDispatch(eventId, stationId, reason, now = Date.now()) {
   const data = await getEvent(eventId);
+  const decision = dispatchDecision(data.runners);
+  if (decision === 'no_runners') return { started: false, reason: 'no_runners' };
   const tile = boardView(data, now).tiles.find((t) => t.station.id === stationId);
   if (!tile) throw new HttpError(404, 'Station not found.');
   if (tile.station.openJobId) return { started: false, jobId: tile.station.openJobId };
@@ -97,25 +101,39 @@ export async function startDispatch(eventId, stationId, reason, now = Date.now()
     throw err;
   }
 
-  if (process.env.STATE_MACHINE_ARN) {
-    const { StartExecutionCommand } = await import('@aws-sdk/client-sfn');
-    const out = await (await sfn()).send(
-      new StartExecutionCommand({
-        stateMachineArn: process.env.STATE_MACHINE_ARN,
-        name: `${eventId}-${jobId}`,
-        input: JSON.stringify({
-          eventId,
-          jobId,
-          ackTimeoutSeconds: Number(process.env.ACK_TIMEOUT_SECONDS || 180),
-          doneTimeoutSeconds: Number(process.env.DONE_TIMEOUT_SECONDS || 2700),
-        }),
-      })
-    );
-    await db.send(new UpdateCommand({ TableName: TABLE, Key: { PK: pk(eventId), SK: `JOB#${jobId}` }, UpdateExpression: 'SET executionArn = :a', ExpressionAttributeValues: { ':a': out.executionArn } }));
-  } else {
-    await assign(eventId, jobId);
+  if (!process.env.STATE_MACHINE_ARN) await assign(eventId, jobId);
+  else if (decision === 'start') await startExecution(eventId, jobId);
+  return { started: true, jobId, waiting: decision === 'wait' };
+}
+
+async function startExecution(eventId, jobId) {
+  const { StartExecutionCommand } = await import('@aws-sdk/client-sfn');
+  // The name is unique per job, so starting twice (a race with the scheduled check) is harmless.
+  const out = await (await sfn()).send(
+    new StartExecutionCommand({
+      stateMachineArn: process.env.STATE_MACHINE_ARN,
+      name: `${eventId}-${jobId}`,
+      input: JSON.stringify({
+        eventId,
+        jobId,
+        ackTimeoutSeconds: Number(process.env.ACK_TIMEOUT_SECONDS || 180),
+        doneTimeoutSeconds: Number(process.env.DONE_TIMEOUT_SECONDS || 2700),
+      }),
+    })
+  );
+  await db.send(new UpdateCommand({ TableName: TABLE, Key: { PK: pk(eventId), SK: `JOB#${jobId}` }, UpdateExpression: 'SET executionArn = :a', ExpressionAttributeValues: { ':a': out.executionArn } }));
+}
+
+// Scheduled check (AWS): start the state machine for waiting jobs, oldest first, one per free runner.
+export async function startWaitingJobs(eventId, data) {
+  const waiting = (data.jobs || []).filter((j) => j.state === 'waiting' && !j.running).sort((a, b) => (a.createdAt || '').localeCompare(b.createdAt || ''));
+  const free = (data.runners || []).filter((r) => r.status === 'free').length;
+  const started = [];
+  for (const j of waiting.slice(0, free)) {
+    await startExecution(eventId, j.id);
+    started.push(j.id);
   }
-  return { started: true, jobId };
+  return started;
 }
 
 // State machine step: give the job to a free runner. { assigned, giveUp }

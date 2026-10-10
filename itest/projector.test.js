@@ -2,11 +2,12 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { handler } from '../src/api/handler.js';
+import { linkHeaders } from './link.js';
 import { liveEventIds, runProjection } from '../src/lib/projector.js';
 import { newTapId } from '../src/core/tap.js';
 
 const call = async (method, path, body) => {
-  const res = await handler({ rawPath: path, requestContext: { http: { method } }, headers: {}, body: body ? JSON.stringify(body) : undefined });
+  const res = await handler({ rawPath: path, requestContext: { http: { method } }, headers: await linkHeaders(method, path, body), body: body ? JSON.stringify(body) : undefined });
   return JSON.parse(res.body);
 };
 const minAgo = (m, now) => new Date(now - m * 60000).toISOString();

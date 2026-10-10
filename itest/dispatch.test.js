@@ -3,12 +3,13 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { handler } from '../src/api/handler.js';
+import { linkHeaders } from './link.js';
 import { handler as dispatcher } from '../src/api/dispatcher.js';
 import { startDispatch } from '../src/lib/dispatch.js';
 import { newTapId } from '../src/core/tap.js';
 
 const call = async (method, path, body) => {
-  const res = await handler({ rawPath: path, requestContext: { http: { method } }, headers: {}, body: body ? JSON.stringify(body) : undefined });
+  const res = await handler({ rawPath: path, requestContext: { http: { method } }, headers: await linkHeaders(method, path, body), body: body ? JSON.stringify(body) : undefined });
   return { status: res.statusCode, data: JSON.parse(res.body) };
 };
 const get = async (id) => (await call('GET', `/events/${id}`)).data;
@@ -96,16 +97,26 @@ test('runner ignores the job: timeout frees them and the job goes to the other r
   assert.equal((await get(id)).runners.find((r) => r.name === 'Asha').status, 'free');
 });
 
-test('no free runner: assign keeps trying, then gives up and frees the station', async () => {
+test('event with no runners: no job is opened (nothing could take it)', async () => {
   const { id, sid } = await setup([]);
   await lastJar(id, sid('North'));
-  const job = (await get(id)).jobs[0];
+  const ev = await get(id);
+  assert.equal(ev.jobs.length, 0);
+  assert.equal(ev.stations.find((s) => s.name === 'North').openJobId, undefined);
+});
+
+test('no free runner: the job waits; assign keeps trying, then gives up and frees the station', async () => {
+  const { id, sid } = await setup(['Asha']);
+  await lastJar(id, sid('South')); // Asha takes South
+  await lastJar(id, sid('North'));
+  const job = (await get(id)).jobs.find((j) => j.stationName === 'North');
   assert.equal(job.state, 'waiting');
+  assert.equal(job.running, false, 'no state machine yet');
   let out;
   for (let i = 0; i < 25 && !out?.giveUp; i++) out = await dispatcher({ action: 'assign', eventId: id, jobId: job.id });
   assert.equal(out.giveUp, true);
   const ev = await get(id);
-  assert.equal(ev.jobs[0].state, 'unassigned');
+  assert.equal(ev.jobs.find((j) => j.stationName === 'North').state, 'unassigned');
   assert.equal(ev.stations.find((s) => s.name === 'North').openJobId, undefined);
 });
 

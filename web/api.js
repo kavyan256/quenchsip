@@ -12,11 +12,13 @@ export class ApiError extends Error {
   }
 }
 
-export async function api(method, path, { body, pin, key, timeoutMs = 10000 } = {}) {
+// token: the secret from a volunteer's or runner's QR link (…&t=<token>).
+export async function api(method, path, { body, pin, key, token, timeoutMs = 10000 } = {}) {
   const headers = {};
   if (body) headers['content-type'] = 'application/json';
   if (pin) headers['x-organiser-pin'] = pin;
   if (key) headers['x-organiser-key'] = key;
+  if (token) headers['x-access-token'] = token;
   let res;
   try {
     res = await fetch(API + path, { method, headers, body: body ? JSON.stringify(body) : undefined, signal: AbortSignal.timeout(timeoutMs) });

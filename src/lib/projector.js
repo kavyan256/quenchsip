@@ -5,7 +5,7 @@ import { QueryCommand, UpdateCommand } from '@aws-sdk/lib-dynamodb';
 import { db, TABLE } from './db.js';
 import { getEvent } from './events.js';
 import { boardView } from '../core/board.js';
-import { startDispatch, retryWaiting } from './dispatch.js';
+import { startDispatch, retryWaiting, startWaitingJobs } from './dispatch.js';
 
 const DAY = 24 * 3600 * 1000;
 
@@ -58,8 +58,9 @@ export async function projectEvent(eventId, now) {
     }
   }
 
-  // Without Step Functions (local runs), retry jobs still waiting for a free runner here.
-  if (!process.env.STATE_MACHINE_ARN) await retryWaiting(eventId, data.jobs || []);
+  // Jobs waiting for a free runner: on AWS start their state machine once a runner is free; locally assign directly.
+  if (process.env.STATE_MACHINE_ARN) await startWaitingJobs(eventId, data).catch((err) => console.error('start waiting jobs failed:', err.message));
+  else await retryWaiting(eventId, data.jobs || []);
 
   return {
     eventId,
