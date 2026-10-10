@@ -701,3 +701,8 @@ legend.ask + * { margin-top: 0; }
 .not-counted-card p { margin: 2px 0 0; color: inherit; }
 .not-counted-card button { flex: none; }
 .stock-card .link-btn { margin-top: var(--s3); }
+.summary-actions { display: grid; grid-template-columns: 1fr 1fr; gap: var(--s2); margin: var(--s5) 0; }
+.summary-actions > * { min-height: 48px; }
+.summary-actions .primary-btn { grid-column: 1 / -1; }
+.summary-actions .ghost-link { grid-column: 1 / -1; justify-self: center; display: inline-flex; align-items: center; }
+.summary-empty .small { max-width: 34ch; margin-left: auto; margin-right: auto; }

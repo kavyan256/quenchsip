@@ -10,6 +10,18 @@ const stat = (big, label, art) => `<div class="stat">${art ? `<span class="art">
 export async function mountSummary(container, eventId) {
   const s = await api('GET', `/events/${eventId}/summary`);
   const d = s.dispatch;
+  // Nothing has happened yet: one calm card instead of a page of zeros.
+  if (!s.water.litres && !d.jobs) {
+    const counted = s.totals.stockedBeforeStart;
+    container.innerHTML = `
+      <section class="calm summary-empty" id="summaryEmpty">
+        <span class="art xl">${svg('dropRest')}</span>
+        <p class="all-calm">Fills in during the event</p>
+        <p class="small">As volunteers tap "Jar swapped", you'll see the water served, plastic bottles not bought, dry minutes and runner times here.</p>
+        ${counted ? `<p class="small">${counted} of ${s.totals.stations} stations have counted their stock so far.</p>` : ''}
+      </section>`;
+    return s;
+  }
   container.innerHTML = `
     <div id="content">
       <section class="card">
@@ -45,7 +57,7 @@ export async function mountSummary(container, eventId) {
           ${s.stations.map((r) => `<tr><td>${escape(r.name)}</td><td>${r.swaps}</td><td>${n(r.litres)}</td><td>${r.dryMinutes}</td><td>${r.stockedBeforeStart ? 'yes' : 'no'}</td><td>${r.restocks} (${r.jarsDelivered})</td></tr>`).join('')}
         </table></div>
       </section>
-      <div class="action-row no-print">
+      <div class="summary-actions no-print">
         <button type="button" class="primary-btn" data-act="share">Share on WhatsApp</button>
         <button type="button" class="ghost" data-act="csv">Download CSV</button>
         <button type="button" class="ghost" data-act="print">Print</button>

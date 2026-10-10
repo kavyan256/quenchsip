@@ -394,7 +394,12 @@ try {
   assert.match(await lateBoard.ev(`document.querySelector('.not-counted').textContent`), /3 stations not counted yet: Food, Gate, Stage/);
   assert.equal(await lateBoard.ev(`document.querySelectorAll('.tile').length`), 0, 'no per-station red tiles');
   await lateBoard.close();
-  step('after the start, uncounted stations are one card with their names');
+  const emptySummary = await open(`${WEB}/summary.html?e=${late.id}`);
+  await waitFor(emptySummary, `document.getElementById('summaryEmpty') !== null`);
+  assert.match(await emptySummary.ev(`document.getElementById('summaryEmpty').textContent`), /Fills in during the event/);
+  assert.doesNotMatch(await emptySummary.ev(`document.getElementById('mount').textContent`), /0–0 kg/, 'no page of zeros');
+  await emptySummary.close();
+  step('after the start, uncounted stations are one card with their names; an empty summary says it fills in later');
 
   const tapAt = Date.now();
   await tapApi('Alpha', 'swap');
